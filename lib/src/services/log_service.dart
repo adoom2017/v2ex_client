@@ -11,7 +11,7 @@ class LogService {
       printEmojis: true, // 显示表情符号
       dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart, // 显示时间戳
     ),
-    level: Level.debug, // 设置日志级别
+    level: Level.info, // 设置日志级别
   );
 
   // Debug 级别日志
@@ -41,13 +41,13 @@ class LogService {
 
   // API 请求日志
   static void apiRequest(String method, String url, [Map<String, dynamic>? data]) {
-    _logger.i('🌐 API Request: $method $url', error: data);
+    _logger.d('🌐 API Request: $method $url', error: data);
   }
 
   // API 响应日志
   static void apiResponse(String method, String url, int statusCode, [dynamic data]) {
     if (statusCode >= 200 && statusCode < 300) {
-      _logger.i('✅ API Response: $method $url - $statusCode');
+      _logger.d('✅ API Response: $method $url - $statusCode');
     } else {
       _logger.w('⚠️ API Response: $method $url - $statusCode', error: data);
     }
@@ -60,12 +60,12 @@ class LogService {
 
   // Token 相关日志
   static void tokenOperation(String operation, [String? details]) {
-    _logger.i('🔑 Token Operation: $operation ${details ?? ''}');
+    _logger.d('🔑 Token Operation: $operation ${details ?? ''}');
   }
 
   // 用户操作日志
   static void userAction(String action, [Map<String, dynamic>? context]) {
-    _logger.i('👤 User Action: $action', error: context);
+    _logger.d('👤 User Action: $action', error: context);
   }
 }
 

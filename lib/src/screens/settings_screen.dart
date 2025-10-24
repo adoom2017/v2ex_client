@@ -24,9 +24,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final token = await ref.read(tokenServiceProvider).getToken();
     if (token != null) {
       _tokenController.text = token;
-      LogService.info('✅ Token loaded and populated in UI');
-    } else {
-      LogService.info('ℹ️ No saved token found');
     }
   }
 

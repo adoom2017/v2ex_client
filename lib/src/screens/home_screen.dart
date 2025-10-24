@@ -29,6 +29,7 @@ class HomeScreen extends ConsumerWidget {
               ref.read(currentPageProvider.notifier).state = 1; // 重置到第一页
             },
             itemBuilder: (BuildContext context) => [
+              const PopupMenuItem(value: 'share', child: Text('分享发现')),
               const PopupMenuItem(value: 'python', child: Text('Python')),
               const PopupMenuItem(value: 'java', child: Text('Java')),
               const PopupMenuItem(value: 'javascript', child: Text('JavaScript')),

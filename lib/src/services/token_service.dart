@@ -12,8 +12,6 @@ class TokenService {
     try {
       final token = await _storage.read(key: _tokenKey);
       if (token != null) {
-        LogService.tokenOperation('Token retrieved successfully');
-        LogService.debug('🔑 Token length: ${token.length}');
       } else {
         LogService.tokenOperation('No token found in storage');
       }
@@ -28,7 +26,6 @@ class TokenService {
     try {
       await _storage.write(key: _tokenKey, value: token);
       LogService.tokenOperation('Token saved successfully', 'Length: ${token.length}');
-      LogService.info('🔑 Token stored in secure storage');
     } catch (e, stackTrace) {
       LogService.error('❌ Failed to save token to storage', e, stackTrace);
       rethrow;
@@ -39,7 +36,6 @@ class TokenService {
     try {
       await _storage.delete(key: _tokenKey);
       LogService.tokenOperation('Token deleted successfully');
-      LogService.info('🗑️ Token removed from secure storage');
     } catch (e, stackTrace) {
       LogService.error('❌ Failed to delete token from storage', e, stackTrace);
       rethrow;

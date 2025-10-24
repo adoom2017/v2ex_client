@@ -42,7 +42,7 @@ final topicDetailProvider = FutureProvider.autoDispose.family<Topic, String>((re
 final topicRepliesProvider = FutureProvider.autoDispose.family<List<Reply>, TopicRepliesParam>((ref, param) async {
   final apiClient = ref.read(apiClientProvider);
 
-  final response = await apiClient.getTopicReplies(param.topicId, p: param.page);
+  final response = await apiClient.getTopicReplies(param.topicId, page: param.page);
 
   if (response.data != null) {
     final repliesResponse = RepliesApiResponse.fromJson(response.data);
