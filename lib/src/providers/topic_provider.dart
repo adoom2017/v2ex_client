@@ -39,7 +39,8 @@ final topicDetailProvider = FutureProvider.autoDispose.family<Topic, String>((re
   }
 });
 
-final topicRepliesProvider = FutureProvider.autoDispose.family<List<Reply>, TopicRepliesParam>((ref, param) async {
+// 返回完整的回复响应，包含分页信息
+final topicRepliesWithPaginationProvider = FutureProvider.autoDispose.family<RepliesApiResponse, TopicRepliesParam>((ref, param) async {
   final apiClient = ref.read(apiClientProvider);
 
   final response = await apiClient.getTopicReplies(param.topicId, page: param.page);
@@ -47,12 +48,17 @@ final topicRepliesProvider = FutureProvider.autoDispose.family<List<Reply>, Topi
   if (response.data != null) {
     final repliesResponse = RepliesApiResponse.fromJson(response.data);
     if (repliesResponse.success) {
-      // 即使result为空也是正常情况，返回空列表而不是抛出异常
-      return repliesResponse.result
-          .map((replyJson) => Reply.fromJson(replyJson))
-          .toList();
+      return repliesResponse;
     }
   }
 
   throw Exception('Failed to load replies or invalid data format');
+});
+
+// 保持向后兼容的provider（仅返回回复列表）
+final topicRepliesProvider = FutureProvider.autoDispose.family<List<Reply>, TopicRepliesParam>((ref, param) async {
+  final repliesResponse = await ref.read(topicRepliesWithPaginationProvider(param).future);
+  return repliesResponse.result
+      .map((replyJson) => Reply.fromJson(replyJson))
+      .toList();
 });

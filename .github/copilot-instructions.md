@@ -28,6 +28,8 @@ Flutter-based V2EX client using Riverpod for state management, V2EX API 2.0 Beta
 - **Screens**: Located in `lib/src/screens/` - use `ConsumerWidget` for Riverpod integration
 - **Navigation**: Single-screen app with user profile integrated in AppBar avatar
 - **Widgets**: Reusable components in `lib/src/widgets/` (e.g., `TopicListItem`)
+- **HTML Rendering**: Use `Html` widget for `content_rendered` fields in topics and replies
+- **Interactive Links**: Handle `@username` links in replies to show user's other replies in current topic
 - **Error Handling**: Use `AsyncValue.when()` pattern with loading, error, and data states
 - **Material Design 3**: Use `Theme.of(context).colorScheme` and `textTheme` for consistent styling
 
@@ -42,6 +44,7 @@ dart run build_runner build  # Required after model changes
 - V2EX API returns `{success: true, result: data}` structure
 - Always access `response.data['result']` for actual data
 - Handle both list and single object responses appropriately
+- Use `content_rendered` fields for HTML display instead of raw `content`
 
 ### Avatar Display Pattern
 ```dart

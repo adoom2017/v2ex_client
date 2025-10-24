@@ -1,22 +1,218 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_html/flutter_html.dart';
 import 'package:v2ex_client/src/providers/topic_provider.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
+import 'package:v2ex_client/src/models/reply.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
-// State provider for current replies page
-final currentRepliesPageProvider = StateProvider.autoDispose.family<int, String>((ref, topicId) => 1);
+// State provider for managing infinite scroll replies
+final infiniteRepliesProvider = StateNotifierProvider.autoDispose.family<InfiniteRepliesNotifier, InfiniteRepliesState, String>(
+  (ref, topicId) => InfiniteRepliesNotifier(ref, topicId),
+);
 
-class TopicDetailScreen extends ConsumerWidget {
+// State class for infinite replies
+class InfiniteRepliesState {
+  final List replies;
+  final int currentPage;
+  final bool hasMoreData;
+  final bool isLoading;
+  final String? error;
+  final int totalRepliesCount; // 总回复数
+
+  const InfiniteRepliesState({
+    this.replies = const [],
+    this.currentPage = 1,
+    this.hasMoreData = true,
+    this.isLoading = false,
+    this.error,
+    this.totalRepliesCount = 0,
+  });
+
+  bool get hasError => error != null;
+  String get errorMessage => error ?? '';
+
+  InfiniteRepliesState copyWith({
+    List? replies,
+    int? currentPage,
+    bool? hasMoreData,
+    bool? isLoading,
+    String? error,
+    int? totalRepliesCount,
+  }) {
+    return InfiniteRepliesState(
+      replies: replies ?? this.replies,
+      currentPage: currentPage ?? this.currentPage,
+      hasMoreData: hasMoreData ?? this.hasMoreData,
+      isLoading: isLoading ?? this.isLoading,
+      error: error ?? this.error,
+      totalRepliesCount: totalRepliesCount ?? this.totalRepliesCount,
+    );
+  }
+}
+
+// StateNotifier for managing infinite replies
+class InfiniteRepliesNotifier extends StateNotifier<InfiniteRepliesState> {
+  final Ref ref;
+  final String topicId;
+
+  InfiniteRepliesNotifier(this.ref, this.topicId) : super(const InfiniteRepliesState()) {
+    loadInitialReplies();
+  }
+
+  Future<void> loadInitialReplies([int? totalRepliesCount]) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final repliesParam = TopicRepliesParam(topicId: topicId, page: 1);
+      final repliesResponse = await ref.read(topicRepliesWithPaginationProvider(repliesParam).future);
+
+      final replies = repliesResponse.result
+          .map((replyJson) => Reply.fromJson(replyJson))
+          .toList();
+
+      // 使用pagination信息进行准确判断
+      bool hasMore = false;
+      int totalCount = 0;
+
+      if (repliesResponse.pagination != null) {
+        final pagination = repliesResponse.pagination!;
+        totalCount = pagination.total;
+        // 当前页 < 总页数 表示还有更多页
+        hasMore = 1 < pagination.pages;
+      } else {
+        // 如果没有分页信息，使用传入的总回复数或旧逻辑
+        totalCount = totalRepliesCount ?? 0;
+        if (replies.isEmpty) {
+          hasMore = false;
+        } else if (totalRepliesCount != null && totalRepliesCount > 0) {
+          hasMore = replies.length < totalRepliesCount;
+        } else {
+          hasMore = replies.length >= 20;
+        }
+      }
+
+      state = state.copyWith(
+        replies: replies,
+        currentPage: 1,
+        isLoading: false,
+        hasMoreData: hasMore,
+        totalRepliesCount: totalCount,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  Future<void> loadMoreReplies() async {
+    if (state.isLoading || !state.hasMoreData) return;
+
+    state = state.copyWith(isLoading: true);
+    try {
+      final nextPage = state.currentPage + 1;
+      final repliesParam = TopicRepliesParam(topicId: topicId, page: nextPage);
+      final repliesResponse = await ref.read(topicRepliesWithPaginationProvider(repliesParam).future);
+
+      final newReplies = repliesResponse.result
+          .map((replyJson) => Reply.fromJson(replyJson))
+          .toList();
+
+      final allReplies = [...state.replies, ...newReplies];
+
+      // 使用pagination信息进行准确判断
+      bool hasMore = false;
+
+      if (repliesResponse.pagination != null) {
+        final pagination = repliesResponse.pagination!;
+        // 当前页 < 总页数 表示还有更多页
+        hasMore = nextPage < pagination.pages;
+      } else {
+        // 如果没有分页信息，使用旧逻辑
+        if (newReplies.isEmpty) {
+          hasMore = false;
+        } else if (state.totalRepliesCount > 0) {
+          hasMore = allReplies.length < state.totalRepliesCount;
+        } else {
+          hasMore = newReplies.length >= 20;
+        }
+      }
+
+      state = state.copyWith(
+        replies: allReplies,
+        currentPage: nextPage,
+        isLoading: false,
+        hasMoreData: hasMore,
+      );      LogService.userAction('Load more replies', {
+        'topicId': topicId,
+        'page': nextPage,
+        'newRepliesCount': newReplies.length,
+        'totalLoadedReplies': allReplies.length,
+        'totalExpectedReplies': state.totalRepliesCount,
+        'hasMoreData': hasMore,
+        'pagination': repliesResponse.pagination?.toJson(),
+      });
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  Future<void> refresh([int? totalRepliesCount]) async {
+    state = const InfiniteRepliesState();
+    await loadInitialReplies(totalRepliesCount);
+  }
+}
+
+class TopicDetailScreen extends ConsumerStatefulWidget {
   const TopicDetailScreen({required this.topicId, super.key});
   final String topicId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final topicAsyncValue = ref.watch(topicDetailProvider(topicId));
-    final currentRepliesPage = ref.watch(currentRepliesPageProvider(topicId));
-    final repliesParam = TopicRepliesParam(topicId: topicId, page: currentRepliesPage);
-    final repliesAsyncValue = ref.watch(topicRepliesProvider(repliesParam));
+  ConsumerState<TopicDetailScreen> createState() => _TopicDetailScreenState();
+}
+
+class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false; // 防止重复触发加载
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    // 注意：不在这里初始化replies加载，在build方法中根据topic数据初始化
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_isLoadingMore) return; // 如果正在加载，直接返回
+
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      final repliesState = ref.read(infiniteRepliesProvider(widget.topicId));
+
+      // 检查是否应该加载更多
+      if (!repliesState.isLoading && repliesState.hasMoreData) {
+        _isLoadingMore = true;
+        ref.read(infiniteRepliesProvider(widget.topicId).notifier).loadMoreReplies().then((_) {
+          _isLoadingMore = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topicAsyncValue = ref.watch(topicDetailProvider(widget.topicId));
+    final repliesState = ref.watch(infiniteRepliesProvider(widget.topicId));
 
     return Scaffold(
       appBar: AppBar(
@@ -24,16 +220,20 @@ class TopicDetailScreen extends ConsumerWidget {
       ),
       body: topicAsyncValue.when(
         data: (topic) {
+          // 如果replies状态还未初始化（没有加载任何回复），则进行初始化
+          if (repliesState.replies.isEmpty && !repliesState.isLoading && repliesState.totalRepliesCount == 0) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ref.read(infiniteRepliesProvider(widget.topicId).notifier).loadInitialReplies(topic.replies);
+            });
+          }
+
           return RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(topicDetailProvider(topicId));
-              ref.invalidate(topicRepliesProvider(repliesParam));
-              await Future.wait([
-                ref.refresh(topicDetailProvider(topicId).future),
-                ref.refresh(topicRepliesProvider(repliesParam).future),
-              ]);
+              ref.invalidate(topicDetailProvider(widget.topicId));
+              ref.read(infiniteRepliesProvider(widget.topicId).notifier).refresh(topic.replies);
             },
             child: SingleChildScrollView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -76,7 +276,7 @@ class TopicDetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   // Topic content
-                  if (topic.content.isNotEmpty)
+                  if (topic.contentRendered.isNotEmpty)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -84,65 +284,69 @@ class TopicDetailScreen extends ConsumerWidget {
                         color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(topic.content),
+                      child: Html(
+                        data: topic.contentRendered,
+                        style: {
+                          "body": Style(
+                            margin: Margins.zero,
+                            padding: HtmlPaddings.zero,
+                            fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
+                            color: Theme.of(context).textTheme.bodyMedium?.color,
+                          ),
+                          "p": Style(
+                            margin: Margins.only(bottom: 8),
+                            fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
+                          ),
+                          "h1": Style(
+                            fontSize: FontSize(Theme.of(context).textTheme.headlineMedium?.fontSize ?? 24),
+                            fontWeight: FontWeight.bold,
+                            margin: Margins.only(top: 16, bottom: 8),
+                          ),
+                          "h2": Style(
+                            fontSize: FontSize(Theme.of(context).textTheme.headlineSmall?.fontSize ?? 20),
+                            fontWeight: FontWeight.bold,
+                            margin: Margins.only(top: 12, bottom: 6),
+                          ),
+                          "h3": Style(
+                            fontSize: FontSize(Theme.of(context).textTheme.titleLarge?.fontSize ?? 18),
+                            fontWeight: FontWeight.bold,
+                            margin: Margins.only(top: 10, bottom: 4),
+                          ),
+                          "code": Style(
+                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            fontFamily: 'monospace',
+                            padding: HtmlPaddings.symmetric(horizontal: 4, vertical: 2),
+                          ),
+                          "pre": Style(
+                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            padding: HtmlPaddings.all(12),
+                            margin: Margins.symmetric(vertical: 8),
+                          ),
+                          "a": Style(
+                            color: Theme.of(context).colorScheme.primary,
+                            textDecoration: TextDecoration.underline,
+                          ),
+                        },
+                      ),
                     ),
                   const SizedBox(height: 24),
                   // Replies section
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Replies (${topic.replies})',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      Text(
-                        'Page $currentRepliesPage',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                  Text(
+                    'Replies (${topic.replies})',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 16),
-                  // Replies pagination controls
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: currentRepliesPage > 1 ? () {
-                          LogService.userAction('Previous replies page - topic: $topicId, from: $currentRepliesPage, to: ${currentRepliesPage - 1}');
-                          ref.read(currentRepliesPageProvider(topicId).notifier).state = currentRepliesPage - 1;
-                        } : null,
-                        icon: const Icon(Icons.arrow_back),
-                        label: const Text('Previous'),
-                      ),
-                      GestureDetector(
-                        onTap: () => _showRepliesPageJumpDialog(context, ref, topicId, currentRepliesPage),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Theme.of(context).colorScheme.outline),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text('Page $currentRepliesPage'),
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          LogService.userAction('Next replies page - topic: $topicId, from: $currentRepliesPage, to: ${currentRepliesPage + 1}');
-                          ref.read(currentRepliesPageProvider(topicId).notifier).state = currentRepliesPage + 1;
-                        },
-                        icon: const Icon(Icons.arrow_forward),
-                        label: const Text('Next'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  repliesAsyncValue.when(
-                    data: (replies) {
-                      if (replies.isEmpty) {
-                        return const Text('No replies yet.');
-                      }
-                      return Column(
-                        children: replies.map((reply) =>
+                  // Infinite scroll replies list
+                  if (repliesState.isLoading && repliesState.replies.isEmpty)
+                    const Center(child: CircularProgressIndicator())
+                  else if (repliesState.hasError && repliesState.replies.isEmpty)
+                    Text('Error loading replies: ${repliesState.errorMessage}')
+                  else if (repliesState.replies.isEmpty)
+                    const Text('No replies yet.')
+                  else
+                    Column(
+                      children: [
+                        ...repliesState.replies.map((reply) =>
                           Container(
                             margin: const EdgeInsets.only(bottom: 16),
                             padding: const EdgeInsets.all(16),
@@ -181,16 +385,101 @@ class TopicDetailScreen extends ConsumerWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                Text(reply.content),
+                                Html(
+                                  data: reply.contentRendered,
+                                  style: {
+                                    "body": Style(
+                                      margin: Margins.zero,
+                                      padding: HtmlPaddings.zero,
+                                      fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
+                                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                                    ),
+                                    "p": Style(
+                                      margin: Margins.only(bottom: 4),
+                                      fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
+                                    ),
+                                    "code": Style(
+                                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                      fontFamily: 'monospace',
+                                      padding: HtmlPaddings.symmetric(horizontal: 4, vertical: 2),
+                                    ),
+                                    "pre": Style(
+                                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                      padding: HtmlPaddings.all(8),
+                                      margin: Margins.symmetric(vertical: 4),
+                                    ),
+                                    "a": Style(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      textDecoration: TextDecoration.underline,
+                                    ),
+                                  },
+                                  onLinkTap: (url, attributes, element) {
+                                    // 检查是否是@用户的链接
+                                    if (url?.startsWith('/member/') == true) {
+                                      final username = url!.substring('/member/'.length);
+                                      _showUserRepliesDialog(context, ref, widget.topicId, username, repliesState.replies);
+                                    }
+                                  },
+                                ),
                               ],
                             ),
                           ),
-                        ).toList(),
-                      );
-                    },
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (err, stack) => Text('Error loading replies: $err'),
-                  ),
+                        ),
+                        // Loading indicator for next page
+                        if (repliesState.isLoading && repliesState.replies.isNotEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                        // End of replies indicator
+                        if (!repliesState.hasMoreData && !repliesState.isLoading && repliesState.replies.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_outline,
+                                    color: Theme.of(context).colorScheme.primary,
+                                    size: 32,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '已加载全部回复',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  if (repliesState.totalRepliesCount > 0)
+                                    Text(
+                                      '共 ${repliesState.totalRepliesCount} 条回复',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        // Error indicator for loading more
+                        if (repliesState.hasError && repliesState.replies.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Text('Error loading more replies: ${repliesState.errorMessage}'),
+                                  const SizedBox(height: 8),
+                                  ElevatedButton(
+                                    onPressed: () => ref.read(infiniteRepliesProvider(widget.topicId).notifier).loadMoreReplies(),
+                                    child: const Text('Retry'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -203,105 +492,188 @@ class TopicDetailScreen extends ConsumerWidget {
   }
 }
 
-void _showRepliesPageJumpDialog(BuildContext context, WidgetRef ref, String topicId, int currentPage) {
+void _showUserRepliesDialog(BuildContext context, WidgetRef ref, String topicId, String username, List replies) {
+  // 过滤出该用户的所有回复
+  final userReplies = replies.where((reply) => reply.member.username == username).toList();
+
+  LogService.userAction('Show user replies dialog', {
+    'username': username,
+    'topicId': topicId,
+    'repliesCount': userReplies.length,
+  });
+
   showDialog(
     context: context,
-    builder: (context) => _RepliesPageJumpDialog(
+    builder: (context) => _UserRepliesDialog(
+      username: username,
+      userReplies: userReplies,
       topicId: topicId,
-      currentPage: currentPage,
-      onPageJump: (page) {
-        LogService.userAction('Jump to replies page - topic: $topicId, from: $currentPage, to: $page');
-        ref.read(currentRepliesPageProvider(topicId).notifier).state = page;
-      },
     ),
   );
 }
 
-class _RepliesPageJumpDialog extends StatefulWidget {
-  const _RepliesPageJumpDialog({
+
+class _UserRepliesDialog extends StatelessWidget {
+  const _UserRepliesDialog({
+    required this.username,
+    required this.userReplies,
     required this.topicId,
-    required this.currentPage,
-    required this.onPageJump,
   });
 
+  final String username;
+  final List userReplies;
   final String topicId;
-  final int currentPage;
-  final Function(int) onPageJump;
-
-  @override
-  State<_RepliesPageJumpDialog> createState() => _RepliesPageJumpDialogState();
-}
-
-class _RepliesPageJumpDialogState extends State<_RepliesPageJumpDialog> {
-  late TextEditingController _controller;
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.currentPage.toString());
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _jumpToPage() {
-    final input = _controller.text.trim();
-    final page = int.tryParse(input);
-
-    if (page == null || page < 1) {
-      setState(() {
-        _errorText = 'Please enter a valid page number (1 or greater)';
-      });
-      return;
-    }
-
-    widget.onPageJump(page);
-    Navigator.of(context).pop();
-  }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Jump to Replies Page'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Current page: ${widget.currentPage}'),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            keyboardType: TextInputType.number,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: 'Page number',
-              errorText: _errorText,
-              border: const OutlineInputBorder(),
+    return Dialog(
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.8,
+        height: MediaQuery.of(context).size.height * 0.7,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 标题
+            Row(
+              children: [
+                Icon(
+                  Icons.person,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '@$username 在此话题下的回复',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
             ),
-            onSubmitted: (_) => _jumpToPage(),
-            onChanged: (_) {
-              if (_errorText != null) {
-                setState(() {
-                  _errorText = null;
-                });
-              }
-            },
-          ),
-        ],
+            const Divider(),
+            const SizedBox(height: 8),
+
+            // 回复数量
+            Text(
+              '共 ${userReplies.length} 条回复',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 回复列表
+            Expanded(
+              child: userReplies.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.comment_outlined,
+                            size: 48,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '该用户在此话题下暂无回复',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: userReplies.length,
+                      itemBuilder: (context, index) {
+                        final reply = userReplies[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 时间戳
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.schedule,
+                                    size: 16,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    timeago.format(DateTime.fromMillisecondsSinceEpoch(reply.created * 1000)),
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // 回复内容
+                              Html(
+                                data: reply.contentRendered,
+                                style: {
+                                  "body": Style(
+                                    margin: Margins.zero,
+                                    padding: HtmlPaddings.zero,
+                                    fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
+                                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                                  ),
+                                  "p": Style(
+                                    margin: Margins.only(bottom: 4),
+                                    fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
+                                  ),
+                                  "code": Style(
+                                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    fontFamily: 'monospace',
+                                    padding: HtmlPaddings.symmetric(horizontal: 4, vertical: 2),
+                                  ),
+                                  "pre": Style(
+                                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    padding: HtmlPaddings.all(8),
+                                    margin: Margins.symmetric(vertical: 4),
+                                  ),
+                                  "a": Style(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    textDecoration: TextDecoration.underline,
+                                  ),
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+
+            // 底部按钮
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('关闭'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _jumpToPage,
-          child: const Text('Jump'),
-        ),
-      ],
     );
   }
 }
