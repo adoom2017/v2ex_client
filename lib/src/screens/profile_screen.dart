@@ -28,7 +28,12 @@ class ProfileScreen extends ConsumerWidget {
                     children: [
                       CircleAvatar(
                         radius: 40,
-                        backgroundImage: NetworkImage(member.avatarLarge),
+                        backgroundImage: member.avatarLargeUrl.isNotEmpty
+                            ? NetworkImage(member.avatarLargeUrl)
+                            : null,
+                        child: member.avatarLargeUrl.isEmpty
+                            ? Text(member.username.isNotEmpty ? member.username[0].toUpperCase() : '?')
+                            : null,
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -44,10 +49,11 @@ class ProfileScreen extends ConsumerWidget {
                                 member.tagline!,
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
-                            Text(
-                              'Joined ${timeago.format(DateTime.fromMillisecondsSinceEpoch(member.created * 1000))}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
+                            if (member.created != null)
+                              Text(
+                                'Joined ${timeago.format(DateTime.fromMillisecondsSinceEpoch(member.created! * 1000))}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
                           ],
                         ),
                       ),

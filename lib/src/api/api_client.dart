@@ -116,6 +116,11 @@ class ApiClient {
         throw Exception(errorMsg);
       }
 
+      if (e.response?.statusCode == 404) {
+        final errorMsg = 'Notification not found or already deleted.';
+        throw Exception(errorMsg);
+      }
+
       final errorMsg = 'Failed to delete notification: ${e.message}';
       LogService.error('❌ Failed to delete notification: $id', e, stackTrace);
       throw Exception(errorMsg);

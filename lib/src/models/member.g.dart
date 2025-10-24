@@ -7,9 +7,9 @@ part of 'member.dart';
 // **************************************************************************
 
 Member _$MemberFromJson(Map<String, dynamic> json) => Member(
-      id: (json['id'] as num).toInt(),
+      id: (json['id'] as num?)?.toInt(),
       username: json['username'] as String,
-      url: json['url'] as String,
+      url: json['url'] as String?,
       website: json['website'] as String?,
       twitter: json['twitter'] as String?,
       psn: json['psn'] as String?,
@@ -18,8 +18,11 @@ Member _$MemberFromJson(Map<String, dynamic> json) => Member(
       location: json['location'] as String?,
       tagline: json['tagline'] as String?,
       bio: json['bio'] as String?,
-      avatar: json['avatar'] as String,
-      created: (json['created'] as num).toInt(),
+      avatarMini: json['avatar_mini'] as String?,
+      avatarNormal: json['avatar_normal'] as String?,
+      avatarLarge: json['avatar_large'] as String?,
+      created: (json['created'] as num?)?.toInt(),
+      lastModified: (json['last_modified'] as num?)?.toInt(),
       pro: (json['pro'] as num?)?.toInt(),
     );
 
@@ -35,7 +38,10 @@ Map<String, dynamic> _$MemberToJson(Member instance) => <String, dynamic>{
       'location': instance.location,
       'tagline': instance.tagline,
       'bio': instance.bio,
-      'avatar': instance.avatar,
+      'avatar_mini': instance.avatarMini,
+      'avatar_normal': instance.avatarNormal,
+      'avatar_large': instance.avatarLarge,
       'created': instance.created,
+      'last_modified': instance.lastModified,
       'pro': instance.pro,
     };

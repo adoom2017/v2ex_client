@@ -43,10 +43,10 @@ class TopicDetailScreen extends ConsumerWidget {
                   Row(
                     children: [
                       CircleAvatar(
-                        backgroundImage: topic.member?.avatarNormal != null
-                          ? NetworkImage(topic.member!.avatarNormal)
+                        backgroundImage: topic.member?.avatarNormalUrl.isNotEmpty == true
+                          ? NetworkImage(topic.member!.avatarNormalUrl)
                           : null,
-                        child: topic.member?.avatarNormal == null
+                        child: topic.member?.avatarNormalUrl.isEmpty != false
                           ? const Icon(Icons.person)
                           : null,
                       ),
@@ -159,7 +159,12 @@ class TopicDetailScreen extends ConsumerWidget {
                                   children: [
                                     CircleAvatar(
                                       radius: 16,
-                                      backgroundImage: NetworkImage(reply.member.avatarNormal),
+                                      backgroundImage: reply.member.avatarNormalUrl.isNotEmpty
+                                        ? NetworkImage(reply.member.avatarNormalUrl)
+                                        : null,
+                                      child: reply.member.avatarNormalUrl.isEmpty
+                                        ? Text(reply.member.username[0].toUpperCase())
+                                        : null,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(

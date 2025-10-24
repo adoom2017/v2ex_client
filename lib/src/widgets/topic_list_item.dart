@@ -21,10 +21,10 @@ class TopicListItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             CircleAvatar(
-              backgroundImage: topic.member?.avatarNormal != null
-                ? NetworkImage(topic.member!.avatarNormal)
+              backgroundImage: topic.member?.avatarNormalUrl.isNotEmpty == true
+                ? NetworkImage(topic.member!.avatarNormalUrl)
                 : null,
-              child: topic.member?.avatarNormal == null
+              child: topic.member?.avatarNormalUrl.isEmpty != false
                 ? const Icon(Icons.person)
                 : null,
             ),
