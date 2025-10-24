@@ -16,13 +16,16 @@ class Member {
   final String? tagline;
   final String? bio;
 
-  // API响应中分别使用avatar_mini, avatar_normal, avatar_large
+  // API响应中可能有分别的avatar字段（用户资料API）或单一avatar字段（topic详情API）
   @JsonKey(name: 'avatar_mini')
   final String? avatarMini;
   @JsonKey(name: 'avatar_normal')
   final String? avatarNormal;
   @JsonKey(name: 'avatar_large')
   final String? avatarLarge;
+
+  // Topic详情API中使用的单一avatar字段
+  final String? avatar;
 
   final int? created;
   @JsonKey(name: 'last_modified')
@@ -44,16 +47,15 @@ class Member {
     this.avatarMini,
     this.avatarNormal,
     this.avatarLarge,
+    this.avatar,
     this.created,
     this.lastModified,
     this.pro,
   });
 
-  // 便捷方法，保持向后兼容，同时处理通知API中只有username的情况
-  String get avatarNormalUrl => avatarNormal ?? avatarLarge ?? avatarMini ?? '';
-  String get avatarLargeUrl => avatarLarge ?? avatarNormal ?? avatarMini ?? '';
-  String get avatarMiniUrl => avatarMini ?? avatarNormal ?? avatarLarge ?? '';
-
-  factory Member.fromJson(Map<String, dynamic> json) => _$MemberFromJson(json);
+  // 便捷方法，优先使用分别的avatar字段，如果没有则使用单一avatar字段
+  String get avatarNormalUrl => avatarNormal ?? avatar ?? avatarLarge ?? avatarMini ?? '';
+  String get avatarLargeUrl => avatarLarge ?? avatar ?? avatarNormal ?? avatarMini ?? '';
+  String get avatarMiniUrl => avatarMini ?? avatar ?? avatarNormal ?? avatarLarge ?? '';  factory Member.fromJson(Map<String, dynamic> json) => _$MemberFromJson(json);
   Map<String, dynamic> toJson() => _$MemberToJson(this);
 }

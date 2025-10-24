@@ -19,10 +19,6 @@ class ScaffoldWithNavBar extends StatelessWidget {
             icon: Icon(Icons.notifications),
             label: 'Notifications',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
         ],
         currentIndex: _calculateSelectedIndex(context),
         onTap: (int idx) => _onItemTapped(idx, context),
@@ -38,9 +34,6 @@ class ScaffoldWithNavBar extends StatelessWidget {
     if (location.startsWith('/notifications')) {
       return 1;
     }
-    if (location.startsWith('/profile')) {
-      return 2;
-    }
     return 0;
   }
 
@@ -51,9 +44,6 @@ class ScaffoldWithNavBar extends StatelessWidget {
         break;
       case 1:
         GoRouter.of(context).go('/notifications');
-        break;
-      case 2:
-        GoRouter.of(context).go('/profile');
         break;
     }
   }

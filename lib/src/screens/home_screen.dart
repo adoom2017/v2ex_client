@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:v2ex_client/src/providers/topics_provider.dart';
+import 'package:v2ex_client/src/providers/member_provider.dart';
 import 'package:v2ex_client/src/widgets/topic_list_item.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
 
@@ -17,10 +18,36 @@ class HomeScreen extends ConsumerWidget {
     final currentPage = ref.watch(currentPageProvider);
     final topicsParam = TopicsParam(nodeName: selectedNode, page: currentPage);
     final topicsAsyncValue = ref.watch(paginatedTopicsProvider(topicsParam));
+    final memberAsyncValue = ref.watch(memberProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('V2EX'),
+        leading: memberAsyncValue.when(
+          data: (member) => Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: CircleAvatar(
+              backgroundImage: member.avatarNormalUrl.isNotEmpty
+                  ? NetworkImage(member.avatarNormalUrl)
+                  : null,
+              child: member.avatarNormalUrl.isEmpty
+                  ? Text(member.username.isNotEmpty ? member.username[0].toUpperCase() : '?')
+                  : null,
+            ),
+          ),
+          loading: () => const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: CircleAvatar(
+              child: Icon(Icons.person),
+            ),
+          ),
+          error: (err, stack) => const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: CircleAvatar(
+              child: Icon(Icons.error),
+            ),
+          ),
+        ),
         actions: [
           PopupMenuButton<String>(
             onSelected: (String node) {

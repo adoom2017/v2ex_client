@@ -21,10 +21,12 @@ Flutter-based V2EX client using Riverpod for state management, V2EX API 2.0 Beta
 - **JSON Serialization**: Use `@JsonSerializable()` with `build_runner` for code generation
 - **Field Mapping**: Map API fields with `@JsonKey(name: 'api_field')` (e.g., `avatar_normal`, `member_id`)
 - **Null Safety**: Most fields are nullable to handle partial API responses (notifications vs full profiles)
+- **Multiple Avatar Formats**: Member model supports both single `avatar` field (topic API) and separate `avatar_mini/normal/large` fields (profile API)
 - **Convenience Methods**: Provide backward-compatible getters (e.g., `avatarNormalUrl`, `avatarLargeUrl`)
 
 ### UI Components
 - **Screens**: Located in `lib/src/screens/` - use `ConsumerWidget` for Riverpod integration
+- **Navigation**: Single-screen app with user profile integrated in AppBar avatar
 - **Widgets**: Reusable components in `lib/src/widgets/` (e.g., `TopicListItem`)
 - **Error Handling**: Use `AsyncValue.when()` pattern with loading, error, and data states
 - **Material Design 3**: Use `Theme.of(context).colorScheme` and `textTheme` for consistent styling

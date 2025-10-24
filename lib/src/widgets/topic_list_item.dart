@@ -24,8 +24,10 @@ class TopicListItem extends StatelessWidget {
               backgroundImage: topic.member?.avatarNormalUrl.isNotEmpty == true
                 ? NetworkImage(topic.member!.avatarNormalUrl)
                 : null,
-              child: topic.member?.avatarNormalUrl.isEmpty != false
-                ? const Icon(Icons.person)
+              child: topic.member?.avatarNormalUrl.isNotEmpty != true
+                ? (topic.member?.username.isNotEmpty == true
+                    ? Text(topic.member!.username[0].toUpperCase())
+                    : const Icon(Icons.person))
                 : null,
             ),
             const SizedBox(width: 12),
