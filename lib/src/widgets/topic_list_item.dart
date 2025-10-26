@@ -16,19 +16,27 @@ class TopicListItem extends StatelessWidget {
     return InkWell(
       onTap: () => context.push('/t/${topic.id}'),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             CircleAvatar(
+              radius: 20,
               backgroundImage: topic.member?.avatarNormalUrl.isNotEmpty == true
-                ? NetworkImage(topic.member!.avatarNormalUrl)
-                : null,
+                  ? NetworkImage(topic.member!.avatarNormalUrl)
+                  : null,
               child: topic.member?.avatarNormalUrl.isNotEmpty != true
-                ? (topic.member?.username.isNotEmpty == true
-                    ? Text(topic.member!.username[0].toUpperCase())
-                    : const Icon(Icons.person))
-                : null,
+                  ? (topic.member?.username.isNotEmpty == true
+                      ? Text(
+                          topic.member!.username[0].toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            // 使用主题中的字体回退列表
+                          ),
+                        )
+                      : const Icon(Icons.person, size: 20))
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -37,36 +45,52 @@ class TopicListItem extends StatelessWidget {
                 children: [
                   Text(
                     topic.title,
-                    style: textTheme.titleMedium,
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      height: 1.3,
+                      // 使用主题中的字体回退列表
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       Text(
                         topic.member?.username ?? topic.lastReplyBy,
-                        style: textTheme.bodySmall?.copyWith(
+                        style: textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                          // 使用主题中的字体回退列表
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Text(
                         '• ${timeago.format(DateTime.fromMillisecondsSinceEpoch(topic.lastTouched * 1000))}',
-                        style: textTheme.bodySmall,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 13,
+                          // 使用主题中的字体回退列表
+                        ),
                       ),
                       const Spacer(),
                       if (topic.replies > 0)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: theme.colorScheme.secondaryContainer,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             '${topic.replies}',
                             style: textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSecondaryContainer,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              // 使用主题中的字体回退列表
                             ),
                           ),
                         ),
