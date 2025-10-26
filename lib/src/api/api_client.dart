@@ -46,13 +46,16 @@ class ApiClient {
 
   Future<Response> getTopics(String nodeName, {int p = 1}) async {
     try {
-      final response = await _dio.get('nodes/$nodeName/topics', queryParameters: {'p': p});
+      final response =
+          await _dio.get('nodes/$nodeName/topics', queryParameters: {'p': p});
       return response;
     } on DioException catch (e, stackTrace) {
-      LogService.error('❌ Failed to fetch topics for node: $nodeName', e, stackTrace);
+      LogService.error(
+          '❌ Failed to fetch topics for node: $nodeName', e, stackTrace);
 
       if (e.type == DioExceptionType.connectionTimeout) {
-        final errorMsg = 'Connection timeout. Please check your internet connection.';
+        final errorMsg =
+            'Connection timeout. Please check your internet connection.';
         throw Exception(errorMsg);
       } else if (e.type == DioExceptionType.receiveTimeout) {
         final errorMsg = 'Request timeout. Please try again.';
@@ -61,7 +64,8 @@ class ApiClient {
         final errorMsg = 'Node "$nodeName" not found.';
         throw Exception(errorMsg);
       } else if (e.response?.statusCode == 401) {
-        final errorMsg = 'Unauthorized. Please check your Personal Access Token.';
+        final errorMsg =
+            'Unauthorized. Please check your Personal Access Token.';
         throw Exception(errorMsg);
       } else if (e.response?.statusCode == 429) {
         final errorMsg = 'Rate limit exceeded. Please try again later.';
@@ -69,7 +73,8 @@ class ApiClient {
       }
 
       final errorMsg = 'Failed to load topics: ${e.message}';
-      LogService.error('❌ Failed to fetch topics for node: $nodeName', e, stackTrace);
+      LogService.error(
+          '❌ Failed to fetch topics for node: $nodeName', e, stackTrace);
       throw Exception(errorMsg);
     }
   }
@@ -80,7 +85,8 @@ class ApiClient {
       return response;
     } on DioException catch (e, stackTrace) {
       if (e.response?.statusCode == 401) {
-        final errorMsg = 'Unauthorized. Please set your Personal Access Token in Settings.';
+        final errorMsg =
+            'Unauthorized. Please set your Personal Access Token in Settings.';
         throw Exception(errorMsg);
       }
 
@@ -92,11 +98,13 @@ class ApiClient {
 
   Future<Response> getNotifications({int p = 1}) async {
     try {
-      final response = await _dio.get('notifications', queryParameters: {'p': p});
+      final response =
+          await _dio.get('notifications', queryParameters: {'p': p});
       return response;
     } on DioException catch (e, stackTrace) {
       if (e.response?.statusCode == 401) {
-        final errorMsg = 'Unauthorized. Please set your Personal Access Token in Settings.';
+        final errorMsg =
+            'Unauthorized. Please set your Personal Access Token in Settings.';
         throw Exception(errorMsg);
       }
 
@@ -112,7 +120,8 @@ class ApiClient {
       return response;
     } on DioException catch (e, stackTrace) {
       if (e.response?.statusCode == 401) {
-        final errorMsg = 'Unauthorized. Please set your Personal Access Token in Settings.';
+        final errorMsg =
+            'Unauthorized. Please set your Personal Access Token in Settings.';
         throw Exception(errorMsg);
       }
 
@@ -138,20 +147,27 @@ class ApiClient {
       }
 
       final errorMsg = 'Failed to load topic details: ${e.message}';
-      LogService.error('❌ Failed to fetch topic details: $topicId', e, stackTrace);
+      LogService.error(
+          '❌ Failed to fetch topic details: $topicId', e, stackTrace);
       throw Exception(errorMsg);
     }
   }
 
-  Future<Response> getTopicReplies(String topicId, {int page = 1, int size = 20}) async {
+  Future<Response> getTopicReplies(String topicId,
+      {int page = 1, int size = 20}) async {
     try {
-      final response = await _dio.get('topics/$topicId/replies', queryParameters: {
-        'page': page,
-        'size': size,
-      });
+      final queryParams = {
+        'p': page, // V2EX API 使用 'p' 而不是 'page'
+        // 'size': size,  // V2EX API 可能不支持 size 参数，先注释掉
+      };
+
+      final response = await _dio.get('topics/$topicId/replies',
+          queryParameters: queryParams);
+
       return response;
     } on DioException catch (e, stackTrace) {
-      LogService.error('❌ Failed to fetch topic replies: $topicId, page: $page', e, stackTrace);
+      LogService.error('❌ Failed to fetch topic replies: $topicId, page: $page',
+          e, stackTrace);
       throw Exception('Failed to load topic replies: ${e.message}');
     }
   }
