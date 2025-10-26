@@ -7,18 +7,63 @@ import 'package:v2ex_client/src/widgets/topic_list_item.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
 
 final selectedNodeProvider = StateProvider<String>((ref) => 'share');
-final currentPageProvider = StateProvider<int>((ref) => 1);
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late ScrollController _scrollController;
+  bool _isLoadingMore = false;
+
+  String? _lastNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoadingMore) {
+        _loadMoreTopics();
+      }
+    }
+  }
+
+  Future<void> _loadMoreTopics() async {
+    if (_isLoadingMore) return;
+    
+    _isLoadingMore = true;
+    final selectedNode = ref.read(selectedNodeProvider);
+    await ref.read(infiniteTopicsProvider(selectedNode).notifier).loadMoreTopics();
+    _isLoadingMore = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final selectedNode = ref.watch(selectedNodeProvider);
-    final currentPage = ref.watch(currentPageProvider);
-    final topicsParam = TopicsParam(nodeName: selectedNode, page: currentPage);
-    final topicsAsyncValue = ref.watch(paginatedTopicsProvider(topicsParam));
+    final topicsState = ref.watch(infiniteTopicsProvider(selectedNode));
     final memberAsyncValue = ref.watch(memberProvider);
+    
+    // 处理节点变化和初始化
+    if (_lastNode != selectedNode) {
+      _lastNode = selectedNode;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(infiniteTopicsProvider(selectedNode).notifier).loadInitialTopics();
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -62,7 +107,8 @@ class HomeScreen extends ConsumerWidget {
               LogService.userAction(
                   'Node changed', {'from': selectedNode, 'to': node});
               ref.read(selectedNodeProvider.notifier).state = node;
-              ref.read(currentPageProvider.notifier).state = 1; // 重置到第一页
+              // 切换节点时重新加载数据
+              ref.read(infiniteTopicsProvider(node).notifier).refresh();
             },
             itemBuilder: (BuildContext context) => [
               PopupMenuItem(
@@ -122,258 +168,112 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: topicsAsyncValue.when(
-        data: (topics) {
-          if (topics.isEmpty) {
-            return const Center(child: Text('No topics found.'));
+      body: Builder(
+        builder: (context) {
+          if (topicsState.isLoading && topicsState.topics.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
           }
-          return RefreshIndicator(
-            onRefresh: () {
-              LogService.userAction('Pull to refresh triggered',
-                  {'node': selectedNode, 'page': currentPage});
-              return ref.refresh(paginatedTopicsProvider(topicsParam).future);
-            },
-            child: Column(
-              children: [
-                // 主题列表
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: topics.length,
-                    itemBuilder: (context, index) {
-                      final topic = topics[index];
-                      return TopicListItem(topic: topic);
-                    },
-                  ),
-                ),
-                // 分页控件
-                Container(
-                  padding: const EdgeInsets.all(16.0),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    border: Border(
-                      top: BorderSide(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .outline
-                            .withValues(alpha: 0.3),
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+          if (topicsState.error != null && topicsState.topics.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: () async {
+                await ref.read(infiniteTopicsProvider(selectedNode).notifier).refresh();
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Container(
+                  height: MediaQuery.of(context).size.height * 0.8,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // 上一页按钮
-                      ElevatedButton.icon(
-                        onPressed: currentPage > 1
-                            ? () {
-                                LogService.userAction('Previous page', {
-                                  'node': selectedNode,
-                                  'from_page': currentPage,
-                                  'to_page': currentPage - 1
-                                });
-                                ref.read(currentPageProvider.notifier).state =
-                                    currentPage - 1;
-                              }
-                            : null,
-                        icon: const Icon(Icons.arrow_back, size: 16),
-                        label: Text(
-                          '上一页',
-                          style:
-                              Theme.of(context).textTheme.labelMedium?.copyWith(
-                                    fontSize: 13,
-                                  ),
-                        ),
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Theme.of(context).colorScheme.error,
                       ),
-                      // 页码显示和跳转
-                      GestureDetector(
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => _PageJumpDialog(
-                              currentPage: currentPage,
-                              onPageSelected: (page) {
-                                LogService.userAction('Jump to page', {
-                                  'node': selectedNode,
-                                  'from_page': currentPage,
-                                  'to_page': page
-                                });
-                                ref.read(currentPageProvider.notifier).state =
-                                    page;
-                              },
-                            ),
-                          );
+                      const SizedBox(height: 16),
+                      Text(
+                        '加载失败',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Text('${topicsState.error}'),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await ref.read(infiniteTopicsProvider(selectedNode).notifier).refresh();
                         },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0, vertical: 8.0),
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(20.0),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '第 $currentPage 页',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelMedium
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onPrimaryContainer,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 13,
-                                    ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.keyboard_arrow_down,
-                                size: 16,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onPrimaryContainer,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // 下一页按钮
-                      ElevatedButton.icon(
-                        onPressed: topics.length >= 20
-                            ? () {
-                                // 假设每页20个主题
-                                LogService.userAction('Next page', {
-                                  'node': selectedNode,
-                                  'from_page': currentPage,
-                                  'to_page': currentPage + 1
-                                });
-                                ref.read(currentPageProvider.notifier).state =
-                                    currentPage + 1;
-                              }
-                            : null,
-                        icon: const Icon(Icons.arrow_forward, size: 16),
-                        label: Text(
-                          '下一页',
-                          style:
-                              Theme.of(context).textTheme.labelMedium?.copyWith(
-                                    fontSize: 13,
-                                  ),
-                        ),
+                        child: const Text('重试'),
                       ),
                     ],
                   ),
                 ),
-              ],
+              ),
+            );
+          }
+
+          if (topicsState.topics.isEmpty && !topicsState.isLoading) {
+            return RefreshIndicator(
+              onRefresh: () async {
+                await ref.read(infiniteTopicsProvider(selectedNode).notifier).refresh();
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Container(
+                  height: MediaQuery.of(context).size.height * 0.8,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.inbox_outlined, size: 64),
+                      const SizedBox(height: 16),
+                      Text(
+                        '暂无主题',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              await ref.read(infiniteTopicsProvider(selectedNode).notifier).refresh();
+            },
+            child: ListView.separated(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(8),
+              itemCount: topicsState.topics.length + (topicsState.hasMoreData ? 1 : 0),
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                if (index >= topicsState.topics.length) {
+                  // 加载更多指示器
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    alignment: Alignment.center,
+                    child: topicsState.isLoadingMore
+                        ? const CircularProgressIndicator()
+                        : const SizedBox.shrink(),
+                  );
+                }
+
+                final topic = topicsState.topics[index];
+                return TopicListItem(
+                  topic: topic,
+                  onTap: () {
+                    context.push('/t/${topic.id}');
+                  },
+                );
+              },
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(height: 16),
-              Text('Error: $err'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  LogService.userAction('Retry button pressed',
-                      {'node': selectedNode, 'page': currentPage});
-                  ref.invalidate(paginatedTopicsProvider(topicsParam));
-                },
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
 }
 
-class _PageJumpDialog extends StatefulWidget {
-  final int currentPage;
-  final void Function(int page) onPageSelected;
 
-  const _PageJumpDialog({
-    required this.currentPage,
-    required this.onPageSelected,
-  });
-
-  @override
-  State<_PageJumpDialog> createState() => _PageJumpDialogState();
-}
-
-class _PageJumpDialogState extends State<_PageJumpDialog> {
-  late TextEditingController _controller;
-  late int _selectedPage;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedPage = widget.currentPage;
-    _controller = TextEditingController(text: _selectedPage.toString());
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('跳转到页面'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('当前页面: ${widget.currentPage}'),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '页码',
-              hintText: '输入页码 (1-999)',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: (value) {
-              final page = int.tryParse(value);
-              if (page != null && page > 0 && page <= 999) {
-                _selectedPage = page;
-              }
-            },
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final page = int.tryParse(_controller.text);
-            if (page != null && page > 0 && page <= 999) {
-              widget.onPageSelected(page);
-              Navigator.of(context).pop();
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('请输入有效的页码 (1-999)')),
-              );
-            }
-          },
-          child: const Text('跳转'),
-        ),
-      ],
-    );
-  }
-}

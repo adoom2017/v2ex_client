@@ -43,27 +43,26 @@ class LogService {
   static void apiResponse(String method, String url, int statusCode,
       [dynamic data]) {
     if (statusCode >= 200 && statusCode < 300) {
-      _logger.d('✅ API Response: $method $url - $statusCode');
+      _logger.d('API Response: $method $url - $statusCode');
     } else {
-      _logger.w('⚠️ API Response: $method $url - $statusCode', error: data);
+      _logger.w('API Response: $method $url - $statusCode', error: data);
     }
   }
 
   // API 错误日志
   static void apiError(String method, String url, dynamic error,
       [StackTrace? stackTrace]) {
-    _logger.e('❌ API Error: $method $url',
-        error: error, stackTrace: stackTrace);
+    _logger.e('API Error: $method $url', error: error, stackTrace: stackTrace);
   }
 
   // Token 相关日志
   static void tokenOperation(String operation, [String? details]) {
-    _logger.i('🔑 Token Operation: $operation ${details ?? ''}');
+    _logger.i('Token Operation: $operation ${details ?? ''}');
   }
 
   // 用户操作日志
   static void userAction(String action, [Map<String, dynamic>? context]) {
-    _logger.d('👤 User Action: $action', error: context);
+    _logger.d('User Action: $action', error: context);
   }
 }
 

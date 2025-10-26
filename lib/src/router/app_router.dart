@@ -30,18 +30,18 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/notifications',
             builder: (context, state) => const NotificationsScreen(),
           ),
+          GoRoute(
+            path: '/t/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return TopicDetailScreen(topicId: id);
+            },
+          ),
         ],
       ),
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
-      ),
-      GoRoute(
-        path: '/t/:id',
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          return TopicDetailScreen(topicId: id);
-        },
       ),
     ],
   );

@@ -27,7 +27,8 @@ class TopicsParam {
 }
 
 // 保持原有的 provider 用于向后兼容
-final topicsProvider = FutureProvider.autoDispose.family<List<Topic>, String>((ref, nodeName) async {
+final topicsProvider = FutureProvider.autoDispose
+    .family<List<Topic>, String>((ref, nodeName) async {
   final apiClient = ref.read(apiClientProvider);
   final response = await apiClient.getTopics(nodeName);
 
@@ -40,8 +41,9 @@ final topicsProvider = FutureProvider.autoDispose.family<List<Topic>, String>((r
   }
 });
 
-// 新的分页 provider - 会并发获取完整的主题信息包括member.avatar
-final paginatedTopicsProvider = FutureProvider.autoDispose.family<List<Topic>, TopicsParam>((ref, param) async {
+// 新的分页 provider - 快速返回基本topic列表，不等待头像加载
+final paginatedTopicsProvider = FutureProvider.autoDispose
+    .family<List<Topic>, TopicsParam>((ref, param) async {
   final apiClient = ref.read(apiClientProvider);
   final response = await apiClient.getTopics(param.nodeName, p: param.page);
 
@@ -50,26 +52,134 @@ final paginatedTopicsProvider = FutureProvider.autoDispose.family<List<Topic>, T
         .map((topicJson) => Topic.fromJson(topicJson))
         .toList();
 
-    // 并发获取所有主题的详细信息以补充member.avatar数据
-    final List<Future<Topic>> detailFutures = basicTopics.map((basicTopic) async {
-      try {
-        final detailResponse = await apiClient.getTopicDetails(basicTopic.id.toString());
-        if (detailResponse.data != null && detailResponse.data['result'] is Map) {
-          return Topic.fromJson(detailResponse.data['result']);
-        } else {
-          // 如果获取详情失败，使用基本信息
-          return basicTopic;
-        }
-      } catch (e) {
-        // 如果获取详情失败，使用基本信息
-        return basicTopic;
-      }
-    }).toList();
-
-    // 等待所有并发请求完成
-    final enrichedTopics = await Future.wait(detailFutures);
-    return enrichedTopics;
+    // 立即返回基本topic列表，头像将异步加载
+    return basicTopics;
   } else {
     throw Exception('Failed to load topics or invalid data format');
   }
 });
+
+// 无限滚动Topics的状态
+class InfiniteTopicsState {
+  final List<Topic> topics;
+  final int currentPage;
+  final bool hasMoreData;
+  final bool isLoading;
+  final bool isLoadingMore;
+  final String? error;
+
+  const InfiniteTopicsState({
+    this.topics = const [],
+    this.currentPage = 1,
+    this.hasMoreData = true,
+    this.isLoading = false,
+    this.isLoadingMore = false,
+    this.error,
+  });
+
+  bool get hasError => error != null;
+
+  InfiniteTopicsState copyWith({
+    List<Topic>? topics,
+    int? currentPage,
+    bool? hasMoreData,
+    bool? isLoading,
+    bool? isLoadingMore,
+    String? error,
+  }) {
+    return InfiniteTopicsState(
+      topics: topics ?? this.topics,
+      currentPage: currentPage ?? this.currentPage,
+      hasMoreData: hasMoreData ?? this.hasMoreData,
+      isLoading: isLoading ?? this.isLoading,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      error: error,
+    );
+  }
+}
+
+// 无限滚动Topics的StateNotifier
+class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
+  final Ref ref;
+  final String nodeName;
+
+  InfiniteTopicsNotifier(this.ref, this.nodeName) : super(const InfiniteTopicsState()) {
+    loadInitialTopics();
+  }
+
+  Future<void> loadInitialTopics() async {
+    if (!mounted) return;
+    
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final apiClient = ref.read(apiClientProvider);
+      final response = await apiClient.getTopics(nodeName, p: 1);
+
+      if (response.data != null && response.data['result'] is List) {
+        final topics = (response.data['result'] as List)
+            .map((topicJson) => Topic.fromJson(topicJson))
+            .toList();
+
+        if (!mounted) return;
+        
+        state = state.copyWith(
+          topics: topics,
+          currentPage: 1,
+          isLoading: false,
+          hasMoreData: topics.length >= 20, // 假设每页20个
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  Future<void> loadMoreTopics() async {
+    if (!mounted || state.isLoadingMore || !state.hasMoreData) return;
+
+    state = state.copyWith(isLoadingMore: true);
+    try {
+      final nextPage = state.currentPage + 1;
+      final apiClient = ref.read(apiClientProvider);
+      final response = await apiClient.getTopics(nodeName, p: nextPage);
+
+      if (response.data != null && response.data['result'] is List) {
+        final newTopics = (response.data['result'] as List)
+            .map((topicJson) => Topic.fromJson(topicJson))
+            .toList();
+
+        if (!mounted) return;
+
+        final allTopics = [...state.topics, ...newTopics];
+        
+        state = state.copyWith(
+          topics: allTopics,
+          currentPage: nextPage,
+          isLoadingMore: false,
+          hasMoreData: newTopics.length >= 20, // 如果少于20个说明没有更多了
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(
+        isLoadingMore: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  Future<void> refresh() async {
+    state = const InfiniteTopicsState();
+    await loadInitialTopics();
+  }
+}
+
+// 无限滚动Topics的provider
+final infiniteTopicsProvider = StateNotifierProvider.autoDispose
+    .family<InfiniteTopicsNotifier, InfiniteTopicsState, String>(
+  (ref, nodeName) => InfiniteTopicsNotifier(ref, nodeName),
+);

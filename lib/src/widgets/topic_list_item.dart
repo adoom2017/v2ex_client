@@ -4,9 +4,10 @@ import 'package:v2ex_client/src/models/topic.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 class TopicListItem extends StatelessWidget {
-  const TopicListItem({required this.topic, super.key});
+  const TopicListItem({required this.topic, this.onTap, super.key});
 
   final Topic topic;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -14,31 +15,12 @@ class TopicListItem extends StatelessWidget {
     final textTheme = theme.textTheme;
 
     return InkWell(
-      onTap: () => context.push('/t/${topic.id}'),
+      onTap: onTap ?? () => context.push('/t/${topic.id}'),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundImage: topic.member?.avatarNormalUrl.isNotEmpty == true
-                  ? NetworkImage(topic.member!.avatarNormalUrl)
-                  : null,
-              child: topic.member?.avatarNormalUrl.isNotEmpty != true
-                  ? (topic.member?.username.isNotEmpty == true
-                      ? Text(
-                          topic.member!.username[0].toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            // 使用主题中的字体回退列表
-                          ),
-                        )
-                      : const Icon(Icons.person, size: 20))
-                  : null,
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
