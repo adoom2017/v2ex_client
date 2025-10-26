@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:v2ex_client/src/providers/topic_provider.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
 import 'package:v2ex_client/src/models/reply.dart';
@@ -196,6 +198,71 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isLoadingMore = false; // 防止重复触发加载
 
+  // 通用链接处理函数
+  void _handleLinkTap(String? url, BuildContext context) {
+    if (url == null || url.isEmpty) return;
+
+    LogService.userAction('Link clicked', {
+      'url': url,
+      'topicId': widget.topicId,
+    });
+
+    if (url.startsWith('/member/')) {
+      // V2EX 用户链接
+      final username = url.substring('/member/'.length);
+      final repliesState = ref.read(infiniteRepliesProvider(widget.topicId));
+      _showUserRepliesDialog(context, ref, widget.topicId, username, repliesState.replies);
+    } else if (url.startsWith('/t/')) {
+      // V2EX 话题链接
+      final topicId = url.substring('/t/'.length);
+      context.push('/t/$topicId');
+    } else if (url.startsWith('/go/')) {
+      // V2EX 节点链接 - 暂时记录日志，后续可以实现节点页面
+      LogService.info('Node link clicked', {'nodeUrl': url});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('节点链接: $url')),
+      );
+    } else if (url.startsWith('http://') || url.startsWith('https://')) {
+      // 外部链接
+      _launchURL(url);
+    } else if (url.startsWith('/')) {
+      // 其他V2EX内部链接
+      LogService.info('Internal V2EX link clicked', {'url': url});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('V2EX链接: $url')),
+      );
+    } else {
+      // 相对链接或其他链接
+      LogService.info('Other link clicked', {'url': url});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('链接: $url')),
+      );
+    }
+  }
+
+  // 启动外部链接
+  Future<void> _launchURL(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('无法打开链接: $url')),
+          );
+        }
+      }
+    } catch (e) {
+      LogService.error('Failed to launch URL', {'url': url, 'error': e.toString()});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('打开链接失败: $url')),
+        );
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -388,6 +455,9 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                             textDecoration: TextDecoration.underline,
                           ),
                         },
+                        onLinkTap: (url, attributes, element) {
+                          _handleLinkTap(url, context);
+                        },
                       ),
                     ),
                   const SizedBox(height: 24),
@@ -516,17 +586,7 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                                     ),
                                   },
                                   onLinkTap: (url, attributes, element) {
-                                    // 检查是否是@用户的链接
-                                    if (url?.startsWith('/member/') == true) {
-                                      final username =
-                                          url!.substring('/member/'.length);
-                                      _showUserRepliesDialog(
-                                          context,
-                                          ref,
-                                          widget.topicId,
-                                          username,
-                                          repliesState.replies);
-                                    }
+                                    _handleLinkTap(url, context);
                                   },
                                 ),
                               ],
