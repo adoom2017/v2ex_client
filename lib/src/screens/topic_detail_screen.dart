@@ -211,7 +211,8 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
       // V2EX 用户链接
       final username = url.substring('/member/'.length);
       final repliesState = ref.read(infiniteRepliesProvider(widget.topicId));
-      _showUserRepliesDialog(context, ref, widget.topicId, username, repliesState.replies);
+      _showUserRepliesDialog(
+          context, ref, widget.topicId, username, repliesState.replies);
     } else if (url.startsWith('/t/')) {
       // V2EX 话题链接
       final topicId = url.substring('/t/'.length);
@@ -254,7 +255,8 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
         }
       }
     } catch (e) {
-      LogService.error('Failed to launch URL', {'url': url, 'error': e.toString()});
+      LogService.error(
+          'Failed to launch URL', {'url': url, 'error': e.toString()});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('打开链接失败: $url')),
