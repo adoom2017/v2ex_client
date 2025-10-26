@@ -7,7 +7,6 @@ import 'package:v2ex_client/src/screens/topic_detail_screen.dart';
 import 'package:v2ex_client/src/screens/notifications_screen.dart';
 import 'package:v2ex_client/src/widgets/scaffold_with_nav_bar.dart';
 
-
 final routerProvider = Provider<GoRouter>((ref) {
   final rootNavigatorKey = GlobalKey<NavigatorState>();
   final shellNavigatorKey = GlobalKey<NavigatorState>();

@@ -35,7 +35,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       if (!_isLoadingMore) {
         _loadMoreTopics();
       }
@@ -44,10 +45,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _loadMoreTopics() async {
     if (_isLoadingMore) return;
-    
+
     _isLoadingMore = true;
     final selectedNode = ref.read(selectedNodeProvider);
-    await ref.read(infiniteTopicsProvider(selectedNode).notifier).loadMoreTopics();
+    await ref
+        .read(infiniteTopicsProvider(selectedNode).notifier)
+        .loadMoreTopics();
     _isLoadingMore = false;
   }
 
@@ -56,12 +59,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final selectedNode = ref.watch(selectedNodeProvider);
     final topicsState = ref.watch(infiniteTopicsProvider(selectedNode));
     final memberAsyncValue = ref.watch(memberProvider);
-    
+
     // 处理节点变化和初始化
     if (_lastNode != selectedNode) {
       _lastNode = selectedNode;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(infiniteTopicsProvider(selectedNode).notifier).loadInitialTopics();
+        ref
+            .read(infiniteTopicsProvider(selectedNode).notifier)
+            .loadInitialTopics();
       });
     }
 
@@ -177,7 +182,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           if (topicsState.error != null && topicsState.topics.isEmpty) {
             return RefreshIndicator(
               onRefresh: () async {
-                await ref.read(infiniteTopicsProvider(selectedNode).notifier).refresh();
+                await ref
+                    .read(infiniteTopicsProvider(selectedNode).notifier)
+                    .refresh();
               },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -202,7 +209,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () async {
-                          await ref.read(infiniteTopicsProvider(selectedNode).notifier).refresh();
+                          await ref
+                              .read(
+                                  infiniteTopicsProvider(selectedNode).notifier)
+                              .refresh();
                         },
                         child: const Text('重试'),
                       ),
@@ -216,7 +226,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           if (topicsState.topics.isEmpty && !topicsState.isLoading) {
             return RefreshIndicator(
               onRefresh: () async {
-                await ref.read(infiniteTopicsProvider(selectedNode).notifier).refresh();
+                await ref
+                    .read(infiniteTopicsProvider(selectedNode).notifier)
+                    .refresh();
               },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -241,12 +253,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           return RefreshIndicator(
             onRefresh: () async {
-              await ref.read(infiniteTopicsProvider(selectedNode).notifier).refresh();
+              await ref
+                  .read(infiniteTopicsProvider(selectedNode).notifier)
+                  .refresh();
             },
             child: ListView.separated(
               controller: _scrollController,
               padding: const EdgeInsets.all(8),
-              itemCount: topicsState.topics.length + (topicsState.hasMoreData ? 1 : 0),
+              itemCount:
+                  topicsState.topics.length + (topicsState.hasMoreData ? 1 : 0),
               separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 if (index >= topicsState.topics.length) {
@@ -275,5 +290,3 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 }
-
-

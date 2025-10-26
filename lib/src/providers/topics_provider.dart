@@ -103,13 +103,14 @@ class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
   final Ref ref;
   final String nodeName;
 
-  InfiniteTopicsNotifier(this.ref, this.nodeName) : super(const InfiniteTopicsState()) {
+  InfiniteTopicsNotifier(this.ref, this.nodeName)
+      : super(const InfiniteTopicsState()) {
     loadInitialTopics();
   }
 
   Future<void> loadInitialTopics() async {
     if (!mounted) return;
-    
+
     state = state.copyWith(isLoading: true, error: null);
     try {
       final apiClient = ref.read(apiClientProvider);
@@ -121,7 +122,7 @@ class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
             .toList();
 
         if (!mounted) return;
-        
+
         state = state.copyWith(
           topics: topics,
           currentPage: 1,
@@ -155,7 +156,7 @@ class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
         if (!mounted) return;
 
         final allTopics = [...state.topics, ...newTopics];
-        
+
         state = state.copyWith(
           topics: allTopics,
           currentPage: nextPage,
