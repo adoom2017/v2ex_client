@@ -7,7 +7,8 @@ import 'package:v2ex_client/src/models/reply.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 // State provider for managing infinite scroll replies
-final infiniteRepliesProvider = StateNotifierProvider.autoDispose.family<InfiniteRepliesNotifier, InfiniteRepliesState, String>(
+final infiniteRepliesProvider = StateNotifierProvider.autoDispose
+    .family<InfiniteRepliesNotifier, InfiniteRepliesState, String>(
   (ref, topicId) => InfiniteRepliesNotifier(ref, topicId),
 );
 
@@ -19,6 +20,7 @@ class InfiniteRepliesState {
   final bool isLoading;
   final String? error;
   final int totalRepliesCount; // 总回复数
+  final bool isInitialized; // 是否已经初始化过
 
   const InfiniteRepliesState({
     this.replies = const [],
@@ -27,6 +29,7 @@ class InfiniteRepliesState {
     this.isLoading = false,
     this.error,
     this.totalRepliesCount = 0,
+    this.isInitialized = false,
   });
 
   bool get hasError => error != null;
@@ -39,6 +42,7 @@ class InfiniteRepliesState {
     bool? isLoading,
     String? error,
     int? totalRepliesCount,
+    bool? isInitialized,
   }) {
     return InfiniteRepliesState(
       replies: replies ?? this.replies,
@@ -47,6 +51,7 @@ class InfiniteRepliesState {
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
       totalRepliesCount: totalRepliesCount ?? this.totalRepliesCount,
+      isInitialized: isInitialized ?? this.isInitialized,
     );
   }
 }
@@ -56,15 +61,19 @@ class InfiniteRepliesNotifier extends StateNotifier<InfiniteRepliesState> {
   final Ref ref;
   final String topicId;
 
-  InfiniteRepliesNotifier(this.ref, this.topicId) : super(const InfiniteRepliesState()) {
+  InfiniteRepliesNotifier(this.ref, this.topicId)
+      : super(const InfiniteRepliesState()) {
     loadInitialReplies();
   }
 
   Future<void> loadInitialReplies([int? totalRepliesCount]) async {
+    if (!mounted) return; // 检查是否已经销毁
+
     state = state.copyWith(isLoading: true, error: null);
     try {
       final repliesParam = TopicRepliesParam(topicId: topicId, page: 1);
-      final repliesResponse = await ref.read(topicRepliesWithPaginationProvider(repliesParam).future);
+      final repliesResponse = await ref
+          .read(topicRepliesWithPaginationProvider(repliesParam).future);
 
       final replies = repliesResponse.result
           .map((replyJson) => Reply.fromJson(replyJson))
@@ -91,29 +100,36 @@ class InfiniteRepliesNotifier extends StateNotifier<InfiniteRepliesState> {
         }
       }
 
+      if (!mounted) return; // 再次检查是否已经销毁
+
       state = state.copyWith(
         replies: replies,
         currentPage: 1,
         isLoading: false,
         hasMoreData: hasMore,
         totalRepliesCount: totalCount,
+        isInitialized: true, // 标记为已初始化
       );
     } catch (e) {
+      if (!mounted) return; // 检查是否已经销毁
+
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
+        isInitialized: true, // 即使出错也标记为已初始化，避免重复尝试
       );
     }
   }
 
   Future<void> loadMoreReplies() async {
-    if (state.isLoading || !state.hasMoreData) return;
+    if (!mounted || state.isLoading || !state.hasMoreData) return;
 
     state = state.copyWith(isLoading: true);
     try {
       final nextPage = state.currentPage + 1;
       final repliesParam = TopicRepliesParam(topicId: topicId, page: nextPage);
-      final repliesResponse = await ref.read(topicRepliesWithPaginationProvider(repliesParam).future);
+      final repliesResponse = await ref
+          .read(topicRepliesWithPaginationProvider(repliesParam).future);
 
       final newReplies = repliesResponse.result
           .map((replyJson) => Reply.fromJson(replyJson))
@@ -144,7 +160,8 @@ class InfiniteRepliesNotifier extends StateNotifier<InfiniteRepliesState> {
         currentPage: nextPage,
         isLoading: false,
         hasMoreData: hasMore,
-      );      LogService.userAction('Load more replies', {
+      );
+      LogService.userAction('Load more replies', {
         'topicId': topicId,
         'page': nextPage,
         'newRepliesCount': newReplies.length,
@@ -196,13 +213,17 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
   void _onScroll() {
     if (_isLoadingMore) return; // 如果正在加载，直接返回
 
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       final repliesState = ref.read(infiniteRepliesProvider(widget.topicId));
 
       // 检查是否应该加载更多
       if (!repliesState.isLoading && repliesState.hasMoreData) {
         _isLoadingMore = true;
-        ref.read(infiniteRepliesProvider(widget.topicId).notifier).loadMoreReplies().then((_) {
+        ref
+            .read(infiniteRepliesProvider(widget.topicId).notifier)
+            .loadMoreReplies()
+            .then((_) {
           _isLoadingMore = false;
         });
       }
@@ -220,17 +241,25 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
       ),
       body: topicAsyncValue.when(
         data: (topic) {
-          // 如果replies状态还未初始化（没有加载任何回复），则进行初始化
-          if (repliesState.replies.isEmpty && !repliesState.isLoading && repliesState.totalRepliesCount == 0) {
+          // 如果replies状态还未初始化，则进行初始化
+          // 使用 isInitialized 标记来避免重复初始化，特别是当topic没有回复时
+          if (!repliesState.isInitialized && !repliesState.isLoading) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              ref.read(infiniteRepliesProvider(widget.topicId).notifier).loadInitialReplies(topic.replies);
+              // 只在mounted状态下执行，避免重复调用
+              if (mounted) {
+                ref
+                    .read(infiniteRepliesProvider(widget.topicId).notifier)
+                    .loadInitialReplies(topic.replies);
+              }
             });
           }
 
           return RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(topicDetailProvider(widget.topicId));
-              ref.read(infiniteRepliesProvider(widget.topicId).notifier).refresh(topic.replies);
+              ref
+                  .read(infiniteRepliesProvider(widget.topicId).notifier)
+                  .refresh(topic.replies);
             },
             child: SingleChildScrollView(
               controller: _scrollController,
@@ -243,12 +272,13 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                   Row(
                     children: [
                       CircleAvatar(
-                        backgroundImage: topic.member?.avatarNormalUrl.isNotEmpty == true
-                          ? NetworkImage(topic.member!.avatarNormalUrl)
-                          : null,
+                        backgroundImage:
+                            topic.member?.avatarNormalUrl.isNotEmpty == true
+                                ? NetworkImage(topic.member!.avatarNormalUrl)
+                                : null,
                         child: topic.member?.avatarNormalUrl.isEmpty != false
-                          ? const Icon(Icons.person)
-                          : null,
+                            ? const Icon(Icons.person)
+                            : null,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -260,7 +290,9 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             Text(
-                              timeago.format(DateTime.fromMillisecondsSinceEpoch(topic.created * 1000)),
+                              timeago.format(
+                                  DateTime.fromMillisecondsSinceEpoch(
+                                      topic.created * 1000)),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
@@ -281,7 +313,10 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Html(
@@ -290,35 +325,61 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                           "body": Style(
                             margin: Margins.zero,
                             padding: HtmlPaddings.zero,
-                            fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
-                            color: Theme.of(context).textTheme.bodyMedium?.color,
+                            fontSize: FontSize(Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.fontSize ??
+                                14),
+                            color:
+                                Theme.of(context).textTheme.bodyMedium?.color,
                           ),
                           "p": Style(
                             margin: Margins.only(bottom: 8),
-                            fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
+                            fontSize: FontSize(Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.fontSize ??
+                                14),
                           ),
                           "h1": Style(
-                            fontSize: FontSize(Theme.of(context).textTheme.headlineMedium?.fontSize ?? 24),
+                            fontSize: FontSize(Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.fontSize ??
+                                24),
                             fontWeight: FontWeight.bold,
                             margin: Margins.only(top: 16, bottom: 8),
                           ),
                           "h2": Style(
-                            fontSize: FontSize(Theme.of(context).textTheme.headlineSmall?.fontSize ?? 20),
+                            fontSize: FontSize(Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.fontSize ??
+                                20),
                             fontWeight: FontWeight.bold,
                             margin: Margins.only(top: 12, bottom: 6),
                           ),
                           "h3": Style(
-                            fontSize: FontSize(Theme.of(context).textTheme.titleLarge?.fontSize ?? 18),
+                            fontSize: FontSize(Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.fontSize ??
+                                18),
                             fontWeight: FontWeight.bold,
                             margin: Margins.only(top: 10, bottom: 4),
                           ),
                           "code": Style(
-                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
                             fontFamily: 'monospace',
-                            padding: HtmlPaddings.symmetric(horizontal: 4, vertical: 2),
+                            padding: HtmlPaddings.symmetric(
+                                horizontal: 4, vertical: 2),
                           ),
                           "pre": Style(
-                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
                             padding: HtmlPaddings.all(12),
                             margin: Margins.symmetric(vertical: 8),
                           ),
@@ -339,20 +400,24 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                   // Infinite scroll replies list
                   if (repliesState.isLoading && repliesState.replies.isEmpty)
                     const Center(child: CircularProgressIndicator())
-                  else if (repliesState.hasError && repliesState.replies.isEmpty)
+                  else if (repliesState.hasError &&
+                      repliesState.replies.isEmpty)
                     Text('Error loading replies: ${repliesState.errorMessage}')
                   else if (repliesState.replies.isEmpty)
                     const Text('No replies yet.')
                   else
                     Column(
                       children: [
-                        ...repliesState.replies.map((reply) =>
-                          Container(
+                        ...repliesState.replies.map(
+                          (reply) => Container(
                             margin: const EdgeInsets.only(bottom: 16),
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outline
+                                    .withValues(alpha: 0.3),
                               ),
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -363,24 +428,44 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                                   children: [
                                     CircleAvatar(
                                       radius: 16,
-                                      backgroundImage: reply.member.avatarNormalUrl.isNotEmpty
-                                        ? NetworkImage(reply.member.avatarNormalUrl)
-                                        : null,
-                                      child: reply.member.avatarNormalUrl.isEmpty
-                                        ? Text(reply.member.username[0].toUpperCase())
-                                        : null,
+                                      backgroundImage: reply
+                                              .member.avatarNormalUrl.isNotEmpty
+                                          ? NetworkImage(
+                                              reply.member.avatarNormalUrl)
+                                          : null,
+                                      child:
+                                          reply.member.avatarNormalUrl.isEmpty
+                                              ? Text(reply.member.username[0]
+                                                  .toUpperCase())
+                                              : null,
                                     ),
                                     const SizedBox(width: 8),
-                                    Text(
-                                      reply.member.username,
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              reply.member.username,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            timeago.format(DateTime
+                                                .fromMillisecondsSinceEpoch(
+                                                    reply.created * 1000)),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall,
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      timeago.format(DateTime.fromMillisecondsSinceEpoch(reply.created * 1000)),
-                                      style: Theme.of(context).textTheme.bodySmall,
                                     ),
                                   ],
                                 ),
@@ -391,33 +476,56 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                                     "body": Style(
                                       margin: Margins.zero,
                                       padding: HtmlPaddings.zero,
-                                      fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
-                                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                                      fontSize: FontSize(Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.fontSize ??
+                                          14),
+                                      color: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.color,
                                     ),
                                     "p": Style(
                                       margin: Margins.only(bottom: 4),
-                                      fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
+                                      fontSize: FontSize(Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.fontSize ??
+                                          14),
                                     ),
                                     "code": Style(
-                                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                      backgroundColor: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHighest,
                                       fontFamily: 'monospace',
-                                      padding: HtmlPaddings.symmetric(horizontal: 4, vertical: 2),
+                                      padding: HtmlPaddings.symmetric(
+                                          horizontal: 4, vertical: 2),
                                     ),
                                     "pre": Style(
-                                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                      backgroundColor: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHighest,
                                       padding: HtmlPaddings.all(8),
                                       margin: Margins.symmetric(vertical: 4),
                                     ),
                                     "a": Style(
-                                      color: Theme.of(context).colorScheme.primary,
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
                                       textDecoration: TextDecoration.underline,
                                     ),
                                   },
                                   onLinkTap: (url, attributes, element) {
                                     // 检查是否是@用户的链接
                                     if (url?.startsWith('/member/') == true) {
-                                      final username = url!.substring('/member/'.length);
-                                      _showUserRepliesDialog(context, ref, widget.topicId, username, repliesState.replies);
+                                      final username =
+                                          url!.substring('/member/'.length);
+                                      _showUserRepliesDialog(
+                                          context,
+                                          ref,
+                                          widget.topicId,
+                                          username,
+                                          repliesState.replies);
                                     }
                                   },
                                 ),
@@ -426,13 +534,16 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                           ),
                         ),
                         // Loading indicator for next page
-                        if (repliesState.isLoading && repliesState.replies.isNotEmpty)
+                        if (repliesState.isLoading &&
+                            repliesState.replies.isNotEmpty)
                           const Padding(
                             padding: EdgeInsets.all(16.0),
                             child: Center(child: CircularProgressIndicator()),
                           ),
                         // End of replies indicator
-                        if (!repliesState.hasMoreData && !repliesState.isLoading && repliesState.replies.isNotEmpty)
+                        if (!repliesState.hasMoreData &&
+                            !repliesState.isLoading &&
+                            repliesState.replies.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Center(
@@ -440,38 +551,55 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                                 children: [
                                   Icon(
                                     Icons.check_circle_outline,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                     size: 32,
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
                                     '已加载全部回复',
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
                                   ),
                                   if (repliesState.totalRepliesCount > 0)
                                     Text(
                                       '共 ${repliesState.totalRepliesCount} 条回复',
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
                                     ),
                                 ],
                               ),
                             ),
                           ),
                         // Error indicator for loading more
-                        if (repliesState.hasError && repliesState.replies.isNotEmpty)
+                        if (repliesState.hasError &&
+                            repliesState.replies.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Center(
                               child: Column(
                                 children: [
-                                  Text('Error loading more replies: ${repliesState.errorMessage}'),
+                                  Text(
+                                      'Error loading more replies: ${repliesState.errorMessage}'),
                                   const SizedBox(height: 8),
                                   ElevatedButton(
-                                    onPressed: () => ref.read(infiniteRepliesProvider(widget.topicId).notifier).loadMoreReplies(),
+                                    onPressed: () => ref
+                                        .read(infiniteRepliesProvider(
+                                                widget.topicId)
+                                            .notifier)
+                                        .loadMoreReplies(),
                                     child: const Text('Retry'),
                                   ),
                                 ],
@@ -492,9 +620,11 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
   }
 }
 
-void _showUserRepliesDialog(BuildContext context, WidgetRef ref, String topicId, String username, List replies) {
+void _showUserRepliesDialog(BuildContext context, WidgetRef ref, String topicId,
+    String username, List replies) {
   // 过滤出该用户的所有回复
-  final userReplies = replies.where((reply) => reply.member.username == username).toList();
+  final userReplies =
+      replies.where((reply) => reply.member.username == username).toList();
 
   LogService.userAction('Show user replies dialog', {
     'username': username,
@@ -511,7 +641,6 @@ void _showUserRepliesDialog(BuildContext context, WidgetRef ref, String topicId,
     ),
   );
 }
-
 
 class _UserRepliesDialog extends StatelessWidget {
   const _UserRepliesDialog({
@@ -542,13 +671,16 @@ class _UserRepliesDialog extends StatelessWidget {
                   color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '@$username 在此话题下的回复',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    '@$username',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.close),
@@ -562,8 +694,8 @@ class _UserRepliesDialog extends StatelessWidget {
             Text(
               '共 ${userReplies.length} 条回复',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
             const SizedBox(height: 16),
 
@@ -577,14 +709,20 @@ class _UserRepliesDialog extends StatelessWidget {
                           Icon(
                             Icons.comment_outlined,
                             size: 48,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(height: 8),
                           Text(
                             '该用户在此话题下暂无回复',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
                           ),
                         ],
                       ),
@@ -598,7 +736,10 @@ class _UserRepliesDialog extends StatelessWidget {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outline
+                                  .withValues(alpha: 0.3),
                             ),
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -611,14 +752,23 @@ class _UserRepliesDialog extends StatelessWidget {
                                   Icon(
                                     Icons.schedule,
                                     size: 16,
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    timeago.format(DateTime.fromMillisecondsSinceEpoch(reply.created * 1000)),
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
+                                    timeago.format(
+                                        DateTime.fromMillisecondsSinceEpoch(
+                                            reply.created * 1000)),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
                                   ),
                                 ],
                               ),
@@ -630,25 +780,42 @@ class _UserRepliesDialog extends StatelessWidget {
                                   "body": Style(
                                     margin: Margins.zero,
                                     padding: HtmlPaddings.zero,
-                                    fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
-                                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                                    fontSize: FontSize(Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.fontSize ??
+                                        14),
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.color,
                                   ),
                                   "p": Style(
                                     margin: Margins.only(bottom: 4),
-                                    fontSize: FontSize(Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14),
+                                    fontSize: FontSize(Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.fontSize ??
+                                        14),
                                   ),
                                   "code": Style(
-                                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    backgroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest,
                                     fontFamily: 'monospace',
-                                    padding: HtmlPaddings.symmetric(horizontal: 4, vertical: 2),
+                                    padding: HtmlPaddings.symmetric(
+                                        horizontal: 4, vertical: 2),
                                   ),
                                   "pre": Style(
-                                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    backgroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest,
                                     padding: HtmlPaddings.all(8),
                                     margin: Margins.symmetric(vertical: 4),
                                   ),
                                   "a": Style(
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                     textDecoration: TextDecoration.underline,
                                   ),
                                 },
