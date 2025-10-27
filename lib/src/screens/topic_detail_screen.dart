@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_html/flutter_html.dart';
@@ -198,78 +199,10 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isLoadingMore = false; // 防止重复触发加载
 
-  // 通用链接处理函数
-  void _handleLinkTap(String? url, BuildContext context) {
-    if (url == null || url.isEmpty) return;
-
-    LogService.userAction('Link clicked', {
-      'url': url,
-      'topicId': widget.topicId,
-    });
-
-    if (url.startsWith('/member/')) {
-      // V2EX 用户链接
-      final username = url.substring('/member/'.length);
-      final repliesState = ref.read(infiniteRepliesProvider(widget.topicId));
-      _showUserRepliesDialog(
-          context, ref, widget.topicId, username, repliesState.replies);
-    } else if (url.startsWith('/t/')) {
-      // V2EX 话题链接
-      final topicId = url.substring('/t/'.length);
-      context.push('/t/$topicId');
-    } else if (url.startsWith('/go/')) {
-      // V2EX 节点链接 - 暂时记录日志，后续可以实现节点页面
-      LogService.info('Node link clicked', {'nodeUrl': url});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('节点链接: $url')),
-      );
-    } else if (url.startsWith('http://') || url.startsWith('https://')) {
-      // 外部链接
-      _launchURL(url);
-    } else if (url.startsWith('/')) {
-      // 其他V2EX内部链接
-      LogService.info('Internal V2EX link clicked', {'url': url});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('V2EX链接: $url')),
-      );
-    } else {
-      // 相对链接或其他链接
-      LogService.info('Other link clicked', {'url': url});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('链接: $url')),
-      );
-    }
-  }
-
-  // 启动外部链接
-  Future<void> _launchURL(String url) async {
-    try {
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('无法打开链接: $url')),
-          );
-        }
-      }
-    } catch (e) {
-      LogService.error(
-          'Failed to launch URL', {'url': url, 'error': e.toString()});
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('打开链接失败: $url')),
-        );
-      }
-    }
-  }
-
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    // 注意：不在这里初始化replies加载，在build方法中根据topic数据初始化
   }
 
   @override
@@ -299,23 +232,95 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
     }
   }
 
+  // 通用链接处理函数
+  void _handleLinkTap(String? url, BuildContext context) {
+    if (url == null || url.isEmpty) return;
+
+    LogService.userAction('Link clicked', {
+      'url': url,
+      'topicId': widget.topicId,
+    });
+
+    if (url.startsWith('/member/')) {
+      // V2EX 用户链接
+      final username = url.substring('/member/'.length);
+      final repliesState = ref.read(infiniteRepliesProvider(widget.topicId));
+      _showUserRepliesDialog(
+          context, ref, widget.topicId, username, repliesState.replies);
+    } else if (url.startsWith('/t/')) {
+      // V2EX 话题链接
+      final topicId = url.substring('/t/'.length);
+      context.push('/t/$topicId');
+    } else if (url.startsWith('/go/')) {
+      // V2EX 节点链接
+      LogService.info('Node link clicked', {'nodeUrl': url});
+      _showCupertinoSnackBar(context, '节点链接: $url');
+    } else if (url.startsWith('http://') || url.startsWith('https://')) {
+      // 外部链接
+      _launchURL(url);
+    } else if (url.startsWith('/')) {
+      // 其他V2EX内部链接
+      LogService.info('Internal V2EX link clicked', {'url': url});
+      _showCupertinoSnackBar(context, 'V2EX链接: $url');
+    } else {
+      // 相对链接或其他链接
+      LogService.info('Other link clicked', {'url': url});
+      _showCupertinoSnackBar(context, '链接: $url');
+    }
+  }
+
+  // iOS风格的消息提示
+  void _showCupertinoSnackBar(BuildContext context, String message) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        content: Text(message),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('确定'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 启动外部链接
+  Future<void> _launchURL(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted) {
+          _showCupertinoSnackBar(context, '无法打开链接: $url');
+        }
+      }
+    } catch (e) {
+      LogService.error(
+          'Failed to launch URL', {'url': url, 'error': e.toString()});
+      if (mounted) {
+        _showCupertinoSnackBar(context, '打开链接失败: $url');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final topicAsyncValue = ref.watch(topicDetailProvider(widget.topicId));
     final repliesState = ref.watch(infiniteRepliesProvider(widget.topicId));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('主题详情'),
-        centerTitle: true,
+    return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text('主题详情'),
+        backgroundColor: CupertinoColors.systemBackground,
       ),
-      body: topicAsyncValue.when(
+      child: topicAsyncValue.when(
         data: (topic) {
           // 如果replies状态还未初始化，则进行初始化
-          // 使用 isInitialized 标记来避免重复初始化，特别是当topic没有回复时
           if (!repliesState.isInitialized && !repliesState.isLoading) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              // 只在mounted状态下执行，避免重复调用
               if (mounted) {
                 ref
                     .read(infiniteRepliesProvider(widget.topicId).notifier)
@@ -324,360 +329,459 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
             });
           }
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(topicDetailProvider(widget.topicId));
-              ref
-                  .read(infiniteRepliesProvider(widget.topicId).notifier)
-                  .refresh(topic.replies);
-            },
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Topic header
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundImage:
-                            topic.member?.avatarNormalUrl.isNotEmpty == true
-                                ? NetworkImage(topic.member!.avatarNormalUrl)
-                                : null,
-                        child: topic.member?.avatarNormalUrl.isEmpty != false
-                            ? const Icon(Icons.person)
-                            : null,
+          return CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              CupertinoSliverRefreshControl(
+                onRefresh: () async {
+                  ref.invalidate(topicDetailProvider(widget.topicId));
+                  ref
+                      .read(infiniteRepliesProvider(widget.topicId).notifier)
+                      .refresh(topic.replies);
+                },
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.all(16.0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    // Topic header
+                    Row(
+                      children: [
+                        // 用户头像
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: CupertinoColors.systemGrey5,
+                          ),
+                          child: ClipOval(
+                            child: topic.member?.avatarNormalUrl.isNotEmpty ==
+                                    true
+                                ? Image.network(
+                                    topic.member!.avatarNormalUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: CupertinoColors.systemGrey5,
+                                        child: Icon(
+                                          CupertinoIcons.person,
+                                          color: CupertinoColors.systemGrey,
+                                          size: 20,
+                                        ),
+                                      );
+                                    },
+                                  )
+                                : Icon(
+                                    CupertinoIcons.person,
+                                    color: CupertinoColors.systemGrey,
+                                    size: 20,
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                topic.member?.username ?? 'Unknown User',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: CupertinoColors.label,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                timeago.format(
+                                    DateTime.fromMillisecondsSinceEpoch(
+                                        topic.created * 1000)),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: CupertinoColors.secondaryLabel,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Topic title
+                    Text(
+                      topic.title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: CupertinoColors.label,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              topic.member?.username ?? 'Unknown User',
-                              style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Topic content
+                    if (topic.contentRendered.isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: CupertinoColors.systemBackground,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: CupertinoColors.separator,
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Html(
+                          data: topic.contentRendered,
+                          style: {
+                            "body": Style(
+                              margin: Margins.zero,
+                              padding: HtmlPaddings.zero,
+                              fontSize: FontSize(16),
+                              color: CupertinoColors.label,
                             ),
+                            "p": Style(
+                              margin: Margins.only(bottom: 8),
+                              fontSize: FontSize(16),
+                              color: CupertinoColors.label,
+                            ),
+                            "h1": Style(
+                              fontSize: FontSize(24),
+                              fontWeight: FontWeight.bold,
+                              margin: Margins.only(top: 16, bottom: 8),
+                              color: CupertinoColors.label,
+                            ),
+                            "h2": Style(
+                              fontSize: FontSize(20),
+                              fontWeight: FontWeight.bold,
+                              margin: Margins.only(top: 12, bottom: 6),
+                              color: CupertinoColors.label,
+                            ),
+                            "h3": Style(
+                              fontSize: FontSize(18),
+                              fontWeight: FontWeight.bold,
+                              margin: Margins.only(top: 10, bottom: 4),
+                              color: CupertinoColors.label,
+                            ),
+                            "code": Style(
+                              backgroundColor: CupertinoColors.systemGrey6,
+                              fontFamily: 'monospace',
+                              padding: HtmlPaddings.symmetric(
+                                  horizontal: 4, vertical: 2),
+                            ),
+                            "pre": Style(
+                              backgroundColor: CupertinoColors.systemGrey6,
+                              padding: HtmlPaddings.all(8),
+                              margin: Margins.symmetric(vertical: 4),
+                              fontFamily: 'monospace',
+                            ),
+                            "a": Style(
+                              color: CupertinoColors.systemBlue,
+                              textDecoration: TextDecoration.underline,
+                            ),
+                          },
+                          onLinkTap: (url, attributes, element) =>
+                              _handleLinkTap(url, context),
+                        ),
+                      ),
+
+                    const SizedBox(height: 24),
+
+                    // Replies section header
+                    Row(
+                      children: [
+                        const Icon(
+                          CupertinoIcons.chat_bubble_2,
+                          color: CupertinoColors.systemBlue,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '回复 (${topic.replies})',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.label,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Replies list
+                    if (repliesState.hasError)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: CupertinoColors.systemBackground,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: CupertinoColors.separator,
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            const Icon(
+                              CupertinoIcons.exclamationmark_triangle,
+                              color: CupertinoColors.systemRed,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 12),
                             Text(
-                              timeago.format(
-                                  DateTime.fromMillisecondsSinceEpoch(
-                                      topic.created * 1000)),
-                              style: Theme.of(context).textTheme.bodySmall,
+                              '加载回复失败',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: CupertinoColors.label,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              repliesState.errorMessage,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: CupertinoColors.secondaryLabel,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            CupertinoButton(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 8),
+                              color: CupertinoColors.systemBlue,
+                              onPressed: () => ref
+                                  .read(infiniteRepliesProvider(widget.topicId)
+                                      .notifier)
+                                  .loadMoreReplies(),
+                              child: const Text('重试'),
                             ),
                           ],
                         ),
+                      )
+                    else
+                      ...repliesState.replies
+                          .map<Widget>((reply) => _buildReplyItem(reply))
+                          .toList(),
+
+                    // Loading more indicator
+                    if (repliesState.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Center(
+                          child: CupertinoActivityIndicator(),
+                        ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Topic title
-                  Text(
-                    topic.title,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 16),
-                  // Topic content
-                  if (topic.contentRendered.isNotEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest
-                            .withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Html(
-                        data: topic.contentRendered,
-                        style: {
-                          "body": Style(
-                            margin: Margins.zero,
-                            padding: HtmlPaddings.zero,
-                            fontSize: FontSize(Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.fontSize ??
-                                14),
-                            color:
-                                Theme.of(context).textTheme.bodyMedium?.color,
+
+                    // Load more button or end message
+                    if (!repliesState.isLoading && repliesState.hasMoreData)
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Center(
+                          child: CupertinoButton(
+                            color: CupertinoColors.systemBlue,
+                            onPressed: () => ref
+                                .read(infiniteRepliesProvider(widget.topicId)
+                                    .notifier)
+                                .loadMoreReplies(),
+                            child: const Text('加载更多'),
                           ),
-                          "p": Style(
-                            margin: Margins.only(bottom: 8),
-                            fontSize: FontSize(Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.fontSize ??
-                                14),
-                          ),
-                          "h1": Style(
-                            fontSize: FontSize(Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.fontSize ??
-                                24),
-                            fontWeight: FontWeight.bold,
-                            margin: Margins.only(top: 16, bottom: 8),
-                          ),
-                          "h2": Style(
-                            fontSize: FontSize(Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall
-                                    ?.fontSize ??
-                                20),
-                            fontWeight: FontWeight.bold,
-                            margin: Margins.only(top: 12, bottom: 6),
-                          ),
-                          "h3": Style(
-                            fontSize: FontSize(Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
-                                    ?.fontSize ??
-                                18),
-                            fontWeight: FontWeight.bold,
-                            margin: Margins.only(top: 10, bottom: 4),
-                          ),
-                          "code": Style(
-                            backgroundColor: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                            fontFamily: 'monospace',
-                            padding: HtmlPaddings.symmetric(
-                                horizontal: 4, vertical: 2),
-                          ),
-                          "pre": Style(
-                            backgroundColor: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                            padding: HtmlPaddings.all(12),
-                            margin: Margins.symmetric(vertical: 8),
-                          ),
-                          "a": Style(
-                            color: Theme.of(context).colorScheme.primary,
-                            textDecoration: TextDecoration.underline,
-                          ),
-                        },
-                        onLinkTap: (url, attributes, element) {
-                          _handleLinkTap(url, context);
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-                  // Replies section
-                  Text(
-                    'Replies (${topic.replies})',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  // Infinite scroll replies list
-                  if (repliesState.isLoading && repliesState.replies.isEmpty)
-                    const Center(child: CircularProgressIndicator())
-                  else if (repliesState.hasError &&
-                      repliesState.replies.isEmpty)
-                    Text('Error loading replies: ${repliesState.errorMessage}')
-                  else if (repliesState.replies.isEmpty)
-                    const Text('No replies yet.')
-                  else
-                    Column(
-                      children: [
-                        ...repliesState.replies.map(
-                          (reply) => Container(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outline
-                                    .withValues(alpha: 0.3),
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 16,
-                                      backgroundImage: reply
-                                              .member.avatarNormalUrl.isNotEmpty
-                                          ? NetworkImage(
-                                              reply.member.avatarNormalUrl)
-                                          : null,
-                                      child:
-                                          reply.member.avatarNormalUrl.isEmpty
-                                              ? Text(reply.member.username[0]
-                                                  .toUpperCase())
-                                              : null,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Row(
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              reply.member.username,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            timeago.format(DateTime
-                                                .fromMillisecondsSinceEpoch(
-                                                    reply.created * 1000)),
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Html(
-                                  data: reply.contentRendered,
-                                  style: {
-                                    "body": Style(
-                                      margin: Margins.zero,
-                                      padding: HtmlPaddings.zero,
-                                      fontSize: FontSize(Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium
-                                              ?.fontSize ??
-                                          14),
-                                      color: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.color,
-                                    ),
-                                    "p": Style(
-                                      margin: Margins.only(bottom: 4),
-                                      fontSize: FontSize(Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium
-                                              ?.fontSize ??
-                                          14),
-                                    ),
-                                    "code": Style(
-                                      backgroundColor: Theme.of(context)
-                                          .colorScheme
-                                          .surfaceContainerHighest,
-                                      fontFamily: 'monospace',
-                                      padding: HtmlPaddings.symmetric(
-                                          horizontal: 4, vertical: 2),
-                                    ),
-                                    "pre": Style(
-                                      backgroundColor: Theme.of(context)
-                                          .colorScheme
-                                          .surfaceContainerHighest,
-                                      padding: HtmlPaddings.all(8),
-                                      margin: Margins.symmetric(vertical: 4),
-                                    ),
-                                    "a": Style(
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                      textDecoration: TextDecoration.underline,
-                                    ),
-                                  },
-                                  onLinkTap: (url, attributes, element) {
-                                    _handleLinkTap(url, context);
-                                  },
-                                ),
-                              ],
+                        ),
+                      )
+                    else if (!repliesState.hasMoreData &&
+                        repliesState.replies.isNotEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Center(
+                          child: Text(
+                            '已加载全部回复',
+                            style: TextStyle(
+                              color: CupertinoColors.secondaryLabel,
+                              fontSize: 14,
                             ),
                           ),
                         ),
-                        // Loading indicator for next page
-                        if (repliesState.isLoading &&
-                            repliesState.replies.isNotEmpty)
-                          const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                        // End of replies indicator
-                        if (!repliesState.hasMoreData &&
-                            !repliesState.isLoading &&
-                            repliesState.replies.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle_outline,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                    size: 32,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '已加载全部回复',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                        ),
-                                  ),
-                                  if (repliesState.totalRepliesCount > 0)
-                                    Text(
-                                      '共 ${repliesState.totalRepliesCount} 条回复',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        // Error indicator for loading more
-                        if (repliesState.hasError &&
-                            repliesState.replies.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  Text(
-                                      'Error loading more replies: ${repliesState.errorMessage}'),
-                                  const SizedBox(height: 8),
-                                  ElevatedButton(
-                                    onPressed: () => ref
-                                        .read(infiniteRepliesProvider(
-                                                widget.topicId)
-                                            .notifier)
-                                        .loadMoreReplies(),
-                                    child: const Text('Retry'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                ],
+                      ),
+                  ]),
+                ),
               ),
-            ),
+            ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        loading: () => const Center(
+          child: CupertinoActivityIndicator(),
+        ),
+        error: (err, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                CupertinoIcons.exclamationmark_triangle,
+                color: CupertinoColors.systemRed,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '加载失败',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: CupertinoColors.label,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Error: $err',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: CupertinoColors.secondaryLabel,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReplyItem(dynamic reply) {
+    final repliesState = ref.watch(infiniteRepliesProvider(widget.topicId));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: CupertinoColors.separator,
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Reply header
+          Row(
+            children: [
+              // 回复者头像
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: CupertinoColors.systemGrey5,
+                ),
+                child: ClipOval(
+                  child: reply.member.avatarNormalUrl.isNotEmpty
+                      ? Image.network(
+                          reply.member.avatarNormalUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: CupertinoColors.systemGrey5,
+                              child: Icon(
+                                CupertinoIcons.person,
+                                color: CupertinoColors.systemGrey,
+                                size: 16,
+                              ),
+                            );
+                          },
+                        )
+                      : Icon(
+                          CupertinoIcons.person,
+                          color: CupertinoColors.systemGrey,
+                          size: 16,
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _handleLinkTap(
+                          '/member/${reply.member.username}', context),
+                      child: Text(
+                        reply.member.username,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: CupertinoColors.systemBlue,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      timeago.format(DateTime.fromMillisecondsSinceEpoch(
+                          reply.created * 1000)),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: CupertinoColors.secondaryLabel,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Reply number
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey5,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '#${repliesState.replies.indexOf(reply) + 1}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: CupertinoColors.secondaryLabel,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Reply content
+          Html(
+            data: reply.contentRendered,
+            style: {
+              "body": Style(
+                margin: Margins.zero,
+                padding: HtmlPaddings.zero,
+                fontSize: FontSize(15),
+                color: CupertinoColors.label,
+              ),
+              "p": Style(
+                margin: Margins.only(bottom: 6),
+                fontSize: FontSize(15),
+                color: CupertinoColors.label,
+              ),
+              "code": Style(
+                backgroundColor: CupertinoColors.systemGrey6,
+                fontFamily: 'monospace',
+                padding: HtmlPaddings.symmetric(horizontal: 4, vertical: 2),
+              ),
+              "pre": Style(
+                backgroundColor: CupertinoColors.systemGrey6,
+                padding: HtmlPaddings.all(8),
+                margin: Margins.symmetric(vertical: 4),
+                fontFamily: 'monospace',
+              ),
+              "a": Style(
+                color: CupertinoColors.systemBlue,
+                textDecoration: TextDecoration.underline,
+              ),
+            },
+            onLinkTap: (url, attributes, element) =>
+                _handleLinkTap(url, context),
+          ),
+        ],
       ),
     );
   }
@@ -695,7 +799,7 @@ void _showUserRepliesDialog(BuildContext context, WidgetRef ref, String topicId,
     'repliesCount': userReplies.length,
   });
 
-  showDialog(
+  showCupertinoModalPopup(
     context: context,
     builder: (context) => _UserRepliesDialog(
       username: username,
@@ -718,93 +822,67 @@ class _UserRepliesDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.8,
-        height: MediaQuery.of(context).size.height * 0.7,
-        padding: const EdgeInsets.all(16),
+    return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      navigationBar: CupertinoNavigationBar(
+        middle: Text('@$username'),
+        leading: CupertinoNavigationBarBackButton(
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      child: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 标题
-            Row(
-              children: [
-                Icon(
-                  Icons.person,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '@$username',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const Divider(),
-            const SizedBox(height: 8),
-
             // 回复数量
-            Text(
-              '共 ${userReplies.length} 条回复',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                '共 ${userReplies.length} 条回复',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: CupertinoColors.secondaryLabel,
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
 
             // 回复列表
             Expanded(
               child: userReplies.isEmpty
-                  ? Center(
+                  ? const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.comment_outlined,
+                            CupertinoIcons.chat_bubble_2,
                             size: 48,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: CupertinoColors.systemGrey,
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           Text(
                             '该用户在此话题下暂无回复',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: CupertinoColors.secondaryLabel,
+                            ),
                           ),
                         ],
                       ),
                     )
                   : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: userReplies.length,
                       itemBuilder: (context, index) {
                         final reply = userReplies[index];
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
+                            color: CupertinoColors.systemBackground,
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .outline
-                                  .withValues(alpha: 0.3),
+                              color: CupertinoColors.separator,
+                              width: 0.5,
                             ),
-                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,26 +890,20 @@ class _UserRepliesDialog extends StatelessWidget {
                               // 时间戳
                               Row(
                                 children: [
-                                  Icon(
-                                    Icons.schedule,
+                                  const Icon(
+                                    CupertinoIcons.clock,
                                     size: 16,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
+                                    color: CupertinoColors.secondaryLabel,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
                                     timeago.format(
                                         DateTime.fromMillisecondsSinceEpoch(
                                             reply.created * 1000)),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                        ),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: CupertinoColors.secondaryLabel,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -843,42 +915,28 @@ class _UserRepliesDialog extends StatelessWidget {
                                   "body": Style(
                                     margin: Margins.zero,
                                     padding: HtmlPaddings.zero,
-                                    fontSize: FontSize(Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.fontSize ??
-                                        14),
-                                    color: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.color,
+                                    fontSize: FontSize(15),
+                                    color: CupertinoColors.label,
                                   ),
                                   "p": Style(
                                     margin: Margins.only(bottom: 4),
-                                    fontSize: FontSize(Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.fontSize ??
-                                        14),
+                                    fontSize: FontSize(15),
                                   ),
                                   "code": Style(
-                                    backgroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerHighest,
+                                    backgroundColor:
+                                        CupertinoColors.systemGrey6,
                                     fontFamily: 'monospace',
                                     padding: HtmlPaddings.symmetric(
                                         horizontal: 4, vertical: 2),
                                   ),
                                   "pre": Style(
-                                    backgroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerHighest,
+                                    backgroundColor:
+                                        CupertinoColors.systemGrey6,
                                     padding: HtmlPaddings.all(8),
                                     margin: Margins.symmetric(vertical: 4),
                                   ),
                                   "a": Style(
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
+                                    color: CupertinoColors.systemBlue,
                                     textDecoration: TextDecoration.underline,
                                   ),
                                 },
@@ -888,18 +946,6 @@ class _UserRepliesDialog extends StatelessWidget {
                         );
                       },
                     ),
-            ),
-
-            // 底部按钮
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('关闭'),
-                ),
-              ],
             ),
           ],
         ),

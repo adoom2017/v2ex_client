@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:v2ex_client/src/models/topic.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -11,32 +11,43 @@ class TopicListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
-    final colorScheme = theme.colorScheme;
-
-    return InkWell(
+    return GestureDetector(
       onTap: onTap ?? () => context.push('/t/${topic.id}'),
       child: Container(
+        color: CupertinoColors.systemBackground,
         padding: const EdgeInsets.all(16.0),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 用户头像
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: colorScheme.surfaceContainerHighest,
-              backgroundImage: topic.member?.avatarNormalUrl.isNotEmpty == true
-                  ? NetworkImage(topic.member!.avatarNormalUrl)
-                  : null,
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: CupertinoColors.systemGrey5,
+                image: topic.member?.avatarNormalUrl.isNotEmpty == true
+                    ? DecorationImage(
+                        image: NetworkImage(topic.member!.avatarNormalUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
               child: topic.member?.avatarNormalUrl.isEmpty != false
-                  ? Text(
-                      (topic.member?.username ?? topic.lastReplyBy)[0]
-                          .toUpperCase(),
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                  ? Center(
+                      child: Text(
+                        () {
+                          final username =
+                              topic.member?.username ?? topic.lastReplyBy;
+                          return username.isNotEmpty
+                              ? username[0].toUpperCase()
+                              : '?';
+                        }(),
+                        style: const TextStyle(
+                          color: CupertinoColors.systemGrey,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                       ),
                     )
                   : null,
@@ -53,18 +64,20 @@ class TopicListItem extends StatelessWidget {
                     children: [
                       Text(
                         topic.member?.username ?? topic.lastReplyBy,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurface,
+                        style: const TextStyle(
+                          color: CupertinoColors.label,
                           fontWeight: FontWeight.w500,
                           fontSize: 14,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        timeago.format(DateTime.fromMillisecondsSinceEpoch(
-                            (topic.lastTouched ?? topic.created) * 1000)),
-                        style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                        timeago.format(
+                            DateTime.fromMillisecondsSinceEpoch(
+                                (topic.lastModified ?? topic.created) * 1000),
+                            locale: 'zh'),
+                        style: const TextStyle(
+                          color: CupertinoColors.secondaryLabel,
                           fontSize: 12,
                         ),
                       ),
@@ -72,14 +85,14 @@ class TopicListItem extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
 
-                  // 主题标题
+                  // 标题
                   Text(
                     topic.title,
-                    style: textTheme.bodyLarge?.copyWith(
-                      fontSize: 15,
+                    style: const TextStyle(
+                      fontSize: 16,
                       fontWeight: FontWeight.w400,
-                      height: 1.4,
-                      color: colorScheme.onSurface,
+                      color: CupertinoColors.label,
+                      height: 1.3,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -88,49 +101,62 @@ class TopicListItem extends StatelessWidget {
               ),
             ),
 
-            // 右侧信息区域
+            // 右侧节点标签和回复数量
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // 节点标签
-                if (topic.node?.title != null && topic.node!.title.isNotEmpty)
+                if (topic.node?.title.isNotEmpty == true)
                   Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
-                      color:
-                          colorScheme.primaryContainer.withValues(alpha: 0.7),
+                      color: CupertinoColors.systemGrey6,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       topic.node!.title,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.w500,
+                      style: const TextStyle(
                         fontSize: 11,
+                        color: CupertinoColors.secondaryLabel,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
-
-                // 回复数
-                if (topic.replies > 0)
+                // 回复数量
+                if (topic.replies > 0) ...[
+                  const SizedBox(height: 8),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
+                      color: CupertinoColors.systemBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(
-                      '${topic.replies}',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          CupertinoIcons.chat_bubble,
+                          size: 12,
+                          color: CupertinoColors.systemBlue,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${topic.replies}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: CupertinoColors.systemBlue,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                ],
               ],
             ),
           ],

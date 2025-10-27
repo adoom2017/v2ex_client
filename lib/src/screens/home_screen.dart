@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:v2ex_client/src/providers/group_topics_provider.dart';
@@ -6,6 +6,7 @@ import 'package:v2ex_client/src/providers/member_provider.dart';
 import 'package:v2ex_client/src/widgets/topic_list_item.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
 import 'package:v2ex_client/src/models/group_node.dart';
+import 'package:v2ex_client/src/screens/notifications_screen.dart';
 
 final selectedNodeProvider = StateProvider<String>((ref) => 'latest');
 
@@ -75,277 +76,359 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     }
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        surfaceTintColor: Colors.transparent,
-        title: Text(
+    return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: CupertinoColors.systemBackground,
+        border: const Border(
+          bottom: BorderSide(
+            color: CupertinoColors.separator,
+            width: 0.0,
+          ),
+        ),
+        middle: const Text(
           'V2EX',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: 24,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 17,
+            color: CupertinoColors.label,
+          ),
         ),
         leading: Padding(
           padding: const EdgeInsets.all(8.0),
           child: memberAsyncValue.when(
-            data: (member) => CircleAvatar(
-              radius: 18,
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              backgroundImage: member.avatarNormalUrl.isNotEmpty
-                  ? NetworkImage(member.avatarNormalUrl)
-                  : null,
+            data: (member) => Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: CupertinoColors.systemBlue.withValues(alpha: 0.1),
+                image: member.avatarNormalUrl.isNotEmpty
+                    ? DecorationImage(
+                        image: NetworkImage(member.avatarNormalUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
               child: member.avatarNormalUrl.isEmpty
-                  ? Text(
-                      member.username.isNotEmpty
-                          ? member.username[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
+                  ? Center(
+                      child: Text(
+                        member.username.isNotEmpty
+                            ? member.username[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: CupertinoColors.systemBlue,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                       ),
                     )
                   : null,
             ),
-            loading: () => CircleAvatar(
-              radius: 18,
-              backgroundColor:
-                  Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+            loading: () => Container(
+              width: 30,
+              height: 30,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: CupertinoColors.systemGrey5,
+              ),
+              child: const Center(
+                child: CupertinoActivityIndicator(radius: 8),
               ),
             ),
-            error: (err, stack) => CircleAvatar(
-              radius: 18,
-              backgroundColor: Theme.of(context).colorScheme.errorContainer,
-              child: Icon(
-                Icons.error_outline,
-                color: Theme.of(context).colorScheme.onErrorContainer,
-                size: 18,
+            error: (err, stack) => Container(
+              width: 30,
+              height: 30,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: CupertinoColors.systemRed,
+              ),
+              child: const Icon(
+                CupertinoIcons.exclamationmark,
+                color: CupertinoColors.white,
+                size: 16,
               ),
             ),
           ),
         ),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (String node) {
-              LogService.userAction(
-                  'Node changed', {'from': selectedNode, 'to': node});
-              ref.read(selectedNodeProvider.notifier).state = node;
-              // 切换节点时的数据加载会在build方法中的节点变化检测处理
-              // 这里不需要额外调用refresh，避免重复请求
-            },
-            itemBuilder: (BuildContext context) => officialNodes
-                .map(
-                  (groupNode) => PopupMenuItem(
-                    value: groupNode.key,
-                    child: Text(
-                      groupNode.name,
-                      style: Theme.of(context).textTheme.bodyMedium,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () {
+                showCupertinoModalPopup<String>(
+                  context: context,
+                  builder: (BuildContext context) => CupertinoActionSheet(
+                    title: const Text('选择节点'),
+                    actions: officialNodes
+                        .map(
+                          (groupNode) => CupertinoActionSheetAction(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              LogService.userAction('Node changed',
+                                  {'from': selectedNode, 'to': groupNode.key});
+                              ref.read(selectedNodeProvider.notifier).state =
+                                  groupNode.key;
+                            },
+                            child: Text(groupNode.name),
+                          ),
+                        )
+                        .toList(),
+                    cancelButton: CupertinoActionSheetAction(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: const Text('取消'),
                     ),
                   ),
-                )
-                .toList(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .outline
-                      .withValues(alpha: 0.2),
-                  width: 1,
+                );
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(
+                    color: CupertinoColors.systemBlue.withValues(alpha: 0.3),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      findGroupNodeByKey(selectedNode)?.name ??
+                          selectedNode.toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                        color: CupertinoColors.systemBlue,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      CupertinoIcons.chevron_down,
+                      size: 14,
+                      color: CupertinoColors.systemBlue,
+                    ),
+                  ],
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    findGroupNodeByKey(selectedNode)?.name ??
-                        selectedNode.toUpperCase(),
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color:
-                              Theme.of(context).colorScheme.onPrimaryContainer,
-                        ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.keyboard_arrow_down,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                ],
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                LogService.userAction('Notifications button pressed');
+                showCupertinoModalPopup(
+                  context: context,
+                  builder: (BuildContext context) =>
+                      const NotificationsScreen(),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  CupertinoIcons.bell,
+                  color: CupertinoColors.systemGrey,
+                  size: 18,
+                ),
               ),
             ),
-          ),
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: Icon(
-                Icons.settings_outlined,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                size: 22,
-              ),
-              onPressed: () {
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
                 LogService.userAction('Settings button pressed');
                 context.push('/settings');
               },
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  CupertinoIcons.settings,
+                  color: CupertinoColors.systemGrey,
+                  size: 18,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-      body: Builder(
+      child: Builder(
         builder: (context) {
           if (topicsState.isLoading && topicsState.topics.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CupertinoActivityIndicator());
           }
 
           if (topicsState.error != null && topicsState.topics.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: () async {
-                if (groupNode != null) {
-                  await ref
-                      .read(groupTopicsProvider(groupNode).notifier)
-                      .refresh();
-                }
-              },
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Container(
-                  height: MediaQuery.of(context).size.height * 0.8,
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        '加载失败',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 8),
-                      Text('${topicsState.error}'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () async {
-                          if (groupNode != null) {
-                            await ref
-                                .read(groupTopicsProvider(groupNode).notifier)
-                                .refresh();
-                          }
-                        },
-                        child: const Text('重试'),
-                      ),
-                    ],
+            return CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                CupertinoSliverRefreshControl(
+                  onRefresh: () async {
+                    if (groupNode != null) {
+                      await ref
+                          .read(groupTopicsProvider(groupNode).notifier)
+                          .refresh();
+                    }
+                  },
+                ),
+                SliverFillRemaining(
+                  child: Container(
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          CupertinoIcons.exclamationmark_circle,
+                          size: 64,
+                          color: CupertinoColors.systemRed,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          '加载失败',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.label,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${topicsState.error}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: CupertinoColors.secondaryLabel,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        CupertinoButton.filled(
+                          onPressed: () async {
+                            if (groupNode != null) {
+                              await ref
+                                  .read(groupTopicsProvider(groupNode).notifier)
+                                  .refresh();
+                            }
+                          },
+                          child: const Text('重试'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             );
           }
 
           if (topicsState.topics.isEmpty && !topicsState.isLoading) {
-            return RefreshIndicator(
-              onRefresh: () async {
-                if (groupNode != null) {
-                  await ref
-                      .read(groupTopicsProvider(groupNode).notifier)
-                      .refresh();
-                }
-              },
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Container(
-                  height: MediaQuery.of(context).size.height * 0.8,
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.inbox_outlined, size: 64),
-                      const SizedBox(height: 16),
-                      Text(
-                        '暂无主题',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                    ],
+            return CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                CupertinoSliverRefreshControl(
+                  onRefresh: () async {
+                    if (groupNode != null) {
+                      await ref
+                          .read(groupTopicsProvider(groupNode).notifier)
+                          .refresh();
+                    }
+                  },
+                ),
+                SliverFillRemaining(
+                  child: Container(
+                    alignment: Alignment.center,
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          CupertinoIcons.tray,
+                          size: 64,
+                          color: CupertinoColors.systemGrey,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          '暂无主题',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.label,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          '下拉刷新试试',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: CupertinoColors.secondaryLabel,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             );
           }
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              if (groupNode != null) {
-                await ref
-                    .read(groupTopicsProvider(groupNode).notifier)
-                    .refresh();
-              }
-            },
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: EdgeInsets.zero,
-              itemCount:
-                  topicsState.topics.length + (topicsState.hasMoreData ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index >= topicsState.topics.length) {
-                  // 加载更多指示器
-                  return Container(
-                    padding: const EdgeInsets.all(24),
-                    alignment: Alignment.center,
-                    child: topicsState.isLoadingMore
-                        ? CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Theme.of(context).colorScheme.primary,
-                          )
-                        : const SizedBox.shrink(),
-                  );
-                }
-
-                final topic = topicsState.topics[index];
-                return Column(
-                  children: [
-                    TopicListItem(
-                      topic: topic,
-                      onTap: () {
-                        context.push('/t/${topic.id}');
-                      },
-                    ),
-                    if (index < topicsState.topics.length - 1)
-                      Divider(
-                        height: 1,
-                        thickness: 0.5,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .outlineVariant
-                            .withValues(alpha: 0.3),
-                        indent: 16,
-                        endIndent: 16,
-                      ),
-                  ],
-                );
-              },
-            ),
+          return CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              CupertinoSliverRefreshControl(
+                onRefresh: () async {
+                  if (groupNode != null) {
+                    await ref
+                        .read(groupTopicsProvider(groupNode).notifier)
+                        .refresh();
+                  }
+                },
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index < topicsState.topics.length) {
+                      final topic = topicsState.topics[index];
+                      return Column(
+                        children: [
+                          TopicListItem(topic: topic),
+                          if (index < topicsState.topics.length - 1)
+                            Container(
+                              height: 0.5,
+                              color: CupertinoColors.separator,
+                              margin: const EdgeInsets.only(left: 16),
+                            ),
+                        ],
+                      );
+                    } else if (topicsState.hasMoreData) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        alignment: Alignment.center,
+                        child: const CupertinoActivityIndicator(),
+                      );
+                    } else {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          '没有更多了',
+                          style: TextStyle(
+                            color: CupertinoColors.secondaryLabel,
+                            fontSize: 14,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  childCount: topicsState.topics.length + 1,
+                ),
+              ),
+            ],
           );
         },
       ),

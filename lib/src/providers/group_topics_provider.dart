@@ -70,17 +70,20 @@ class GroupTopicsNotifier extends StateNotifier<GroupTopicsState> {
 
       if (!mounted) return;
 
+      // 按时间排序，最新的在前
+      final sortedTopics = _sortTopicsByTime(result.topics);
+
       state = state.copyWith(
-        topics: result.topics,
+        topics: sortedTopics,
         currentPage: 1,
         isLoading: false,
-        hasMoreData: result.topics.length >= 20,
+        hasMoreData: sortedTopics.length >= 20,
         cachedPages: result.cachedPages,
         totalCount: result.totalCount,
       );
 
       LogService.info(
-          '分组主题加载完成: ${groupNode.name}, 数量: ${result.topics.length}');
+          '分组主题加载完成: ${groupNode.name}, 数量: ${sortedTopics.length}');
     } catch (e) {
       if (!mounted) return;
 
@@ -111,8 +114,11 @@ class GroupTopicsNotifier extends StateNotifier<GroupTopicsState> {
 
       final allTopics = [...state.topics, ...newTopics];
 
+      // 按时间排序，最新的在前
+      final sortedTopics = _sortTopicsByTime(allTopics);
+
       state = state.copyWith(
-        topics: allTopics,
+        topics: sortedTopics,
         currentPage: nextPage,
         isLoadingMore: false,
         hasMoreData: result.topics.length >= 20,
@@ -137,6 +143,20 @@ class GroupTopicsNotifier extends StateNotifier<GroupTopicsState> {
     _service.clearCache(groupNode.key);
     state = const GroupTopicsState();
     await loadInitialTopics();
+  }
+
+  /// 按时间排序主题，最新的在前
+  List<Topic> _sortTopicsByTime(List<Topic> topics) {
+    final sortedTopics = List<Topic>.from(topics);
+    sortedTopics.sort((a, b) {
+      // 优先使用 lastModified，如果不存在则使用 created
+      final aTime = a.lastModified ?? a.created;
+      final bTime = b.lastModified ?? b.created;
+
+      // 降序排序，最新的在前
+      return bTime.compareTo(aTime);
+    });
+    return sortedTopics;
   }
 }
 

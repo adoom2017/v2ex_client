@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:v2ex_client/src/providers/notifications_provider.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -10,134 +10,317 @@ class NotificationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notificationsAsyncValue = ref.watch(notificationsProvider(1));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notifications'),
+    return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: CupertinoColors.systemBackground,
+        border: const Border(
+          bottom: BorderSide(
+            color: CupertinoColors.separator,
+            width: 0.0,
+          ),
+        ),
+        leading: GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemGrey6,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              CupertinoIcons.xmark,
+              color: CupertinoColors.systemGrey,
+              size: 16,
+            ),
+          ),
+        ),
+        middle: const Text(
+          '通知',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 17,
+            color: CupertinoColors.label,
+          ),
+        ),
       ),
-      body: notificationsAsyncValue.when(
+      child: notificationsAsyncValue.when(
         data: (notifications) {
           if (notifications.isEmpty) {
-            return const Center(child: Text('No notifications found.'));
+            return const Center(
+              child: Text(
+                '暂无通知',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: CupertinoColors.secondaryLabel,
+                ),
+              ),
+            );
           }
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(notificationsProvider(1).future),
-            child: ListView.builder(
-              itemCount: notifications.length,
-              itemBuilder: (context, index) {
-                final notification = notifications[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      child: Text(notification.member.username.isNotEmpty
-                          ? notification.member.username[0].toUpperCase()
-                          : '?'),
-                    ),
-                    title: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '@${notification.member.username}',
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
+          return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              CupertinoSliverRefreshControl(
+                onRefresh: () => ref.refresh(notificationsProvider(1).future),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final notification = notifications[index];
+                    return Container(
+                      color: CupertinoColors.systemBackground,
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 4),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: CupertinoColors.systemBackground,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: CupertinoColors.separator
+                                .withValues(alpha: 0.3),
+                            width: 0.5,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          notification.text.replaceAll(RegExp(r'<[^>]*>'), ''), // 移除HTML标签
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        if (notification.payload.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              notification.payload,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        timeago.format(DateTime.fromMillisecondsSinceEpoch(notification.created * 1000)),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () async {
-                        // 显示确认对话框
-                        final shouldDelete = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Delete Notification'),
-                            content: const Text('Are you sure you want to delete this notification?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(false),
-                                child: const Text('Cancel'),
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 用户头像
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: CupertinoColors.systemBlue
+                                    .withValues(alpha: 0.1),
                               ),
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(true),
-                                child: const Text('Delete'),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (shouldDelete == true) {
-                          try {
-                            await ref.read(deleteNotificationProvider(notification.id.toString()).future);
-                            ref.invalidate(notificationsProvider);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Notification deleted successfully'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              String errorMessage = 'Failed to delete notification';
-                              if (e.toString().contains('not found') || e.toString().contains('already deleted')) {
-                                errorMessage = 'Notification was already deleted or not found';
-                              } else if (e.toString().contains('Unauthorized')) {
-                                errorMessage = 'Please check your access token in Settings';
-                              }
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(errorMessage),
-                                  backgroundColor: Colors.orange,
-                                  action: SnackBarAction(
-                                    label: 'Refresh',
-                                    onPressed: () {
-                                      ref.invalidate(notificationsProvider);
-                                    },
+                              child: Center(
+                                child: Text(
+                                  notification.member.username.isNotEmpty
+                                      ? notification.member.username[0]
+                                          .toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                    color: CupertinoColors.systemBlue,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
                                   ),
                                 ),
-                              );
-                            }
-                          }
-                        }
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+
+                            // 通知内容
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // 用户名
+                                  Text(
+                                    '@${notification.member.username}',
+                                    style: const TextStyle(
+                                      color: CupertinoColors.systemBlue,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+
+                                  // 通知文本
+                                  Text(
+                                    notification.text.replaceAll(
+                                        RegExp(r'<[^>]*>'), ''), // 移除HTML标签
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      color: CupertinoColors.label,
+                                      height: 1.3,
+                                    ),
+                                  ),
+
+                                  // payload内容
+                                  if (notification.payload.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: CupertinoColors.systemGrey6,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        notification.payload,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: CupertinoColors.secondaryLabel,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+
+                                  // 时间
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    timeago.format(
+                                      DateTime.fromMillisecondsSinceEpoch(
+                                          notification.created * 1000),
+                                      locale: 'zh',
+                                    ),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: CupertinoColors.secondaryLabel,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // 删除按钮
+                            GestureDetector(
+                              onTap: () async {
+                                // 显示iOS风格的确认对话框
+                                final shouldDelete =
+                                    await showCupertinoDialog<bool>(
+                                  context: context,
+                                  builder: (context) => CupertinoAlertDialog(
+                                    title: const Text('删除通知'),
+                                    content: const Text('确定要删除这条通知吗？'),
+                                    actions: [
+                                      CupertinoDialogAction(
+                                        child: const Text('取消'),
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(false),
+                                      ),
+                                      CupertinoDialogAction(
+                                        isDestructiveAction: true,
+                                        child: const Text('删除'),
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(true),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (shouldDelete == true) {
+                                  try {
+                                    await ref.read(deleteNotificationProvider(
+                                            notification.id.toString())
+                                        .future);
+                                    ref.invalidate(notificationsProvider);
+                                    if (context.mounted) {
+                                      // 显示成功提示
+                                      showCupertinoDialog(
+                                        context: context,
+                                        builder: (context) =>
+                                            CupertinoAlertDialog(
+                                          title: const Text('删除成功'),
+                                          content: const Text('通知已成功删除'),
+                                          actions: [
+                                            CupertinoDialogAction(
+                                              child: const Text('确定'),
+                                              onPressed: () =>
+                                                  Navigator.of(context).pop(),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      String errorMessage = '删除通知失败';
+                                      if (e.toString().contains('not found') ||
+                                          e
+                                              .toString()
+                                              .contains('already deleted')) {
+                                        errorMessage = '通知已被删除或不存在';
+                                      } else if (e
+                                          .toString()
+                                          .contains('Unauthorized')) {
+                                        errorMessage = '请在设置中检查访问令牌';
+                                      }
+
+                                      // 显示错误提示
+                                      showCupertinoDialog(
+                                        context: context,
+                                        builder: (context) =>
+                                            CupertinoAlertDialog(
+                                          title: const Text('删除失败'),
+                                          content: Text(errorMessage),
+                                          actions: [
+                                            CupertinoDialogAction(
+                                              child: const Text('刷新'),
+                                              onPressed: () {
+                                                Navigator.of(context).pop();
+                                                ref.invalidate(
+                                                    notificationsProvider);
+                                              },
+                                            ),
+                                            CupertinoDialogAction(
+                                              child: const Text('确定'),
+                                              onPressed: () =>
+                                                  Navigator.of(context).pop(),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: CupertinoColors.systemRed
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  CupertinoIcons.delete,
+                                  color: CupertinoColors.systemRed,
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                  childCount: notifications.length,
+                ),
+              ),
+            ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        loading: () => const Center(child: CupertinoActivityIndicator()),
+        error: (err, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                CupertinoIcons.exclamationmark_circle,
+                size: 64,
+                color: CupertinoColors.systemRed,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '加载失败',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: CupertinoColors.label,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$err',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: CupertinoColors.secondaryLabel,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
