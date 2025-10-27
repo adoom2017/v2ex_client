@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:v2ex_client/src/providers/topics_provider.dart';
+import 'package:v2ex_client/src/providers/group_topics_provider.dart';
 import 'package:v2ex_client/src/providers/member_provider.dart';
 import 'package:v2ex_client/src/widgets/topic_list_item.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
+import 'package:v2ex_client/src/models/group_node.dart';
 
 final selectedNodeProvider = StateProvider<String>((ref) => 'latest');
 
@@ -48,61 +49,89 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     _isLoadingMore = true;
     final selectedNode = ref.read(selectedNodeProvider);
-    await ref
-        .read(infiniteTopicsProvider(selectedNode).notifier)
-        .loadMoreTopics();
+    final groupNode = findGroupNodeByKey(selectedNode);
+    if (groupNode != null) {
+      await ref.read(groupTopicsProvider(groupNode).notifier).loadMoreTopics();
+    }
     _isLoadingMore = false;
   }
 
   @override
   Widget build(BuildContext context) {
     final selectedNode = ref.watch(selectedNodeProvider);
-    final topicsState = ref.watch(infiniteTopicsProvider(selectedNode));
+    final groupNode = findGroupNodeByKey(selectedNode);
+    final topicsState = groupNode != null
+        ? ref.watch(groupTopicsProvider(groupNode))
+        : const GroupTopicsState();
     final memberAsyncValue = ref.watch(memberProvider);
 
     // 处理节点变化和初始化
     if (_lastNode != selectedNode) {
       _lastNode = selectedNode;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref
-            .read(infiniteTopicsProvider(selectedNode).notifier)
-            .loadInitialTopics();
-      });
+      if (groupNode != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(groupTopicsProvider(groupNode).notifier).loadInitialTopics();
+        });
+      }
     }
 
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
         title: Text(
           'V2EX',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                fontSize: 20,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 24,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
         ),
-        leading: memberAsyncValue.when(
-          data: (member) => Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: memberAsyncValue.when(
+            data: (member) => CircleAvatar(
+              radius: 18,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
               backgroundImage: member.avatarNormalUrl.isNotEmpty
                   ? NetworkImage(member.avatarNormalUrl)
                   : null,
               child: member.avatarNormalUrl.isEmpty
-                  ? Text(member.username.isNotEmpty
-                      ? member.username[0].toUpperCase()
-                      : '?')
+                  ? Text(
+                      member.username.isNotEmpty
+                          ? member.username[0].toUpperCase()
+                          : '?',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    )
                   : null,
             ),
-          ),
-          loading: () => const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              child: Icon(Icons.person),
+            loading: () => CircleAvatar(
+              radius: 18,
+              backgroundColor:
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
             ),
-          ),
-          error: (err, stack) => const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              child: Icon(Icons.error),
+            error: (err, stack) => CircleAvatar(
+              radius: 18,
+              backgroundColor: Theme.of(context).colorScheme.errorContainer,
+              child: Icon(
+                Icons.error_outline,
+                color: Theme.of(context).colorScheme.onErrorContainer,
+                size: 18,
+              ),
             ),
           ),
         ),
@@ -112,46 +141,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               LogService.userAction(
                   'Node changed', {'from': selectedNode, 'to': node});
               ref.read(selectedNodeProvider.notifier).state = node;
-              // 切换节点时重新加载数据
-              ref.read(infiniteTopicsProvider(node).notifier).refresh();
+              // 切换节点时的数据加载会在build方法中的节点变化检测处理
+              // 这里不需要额外调用refresh，避免重复请求
             },
-            itemBuilder: (BuildContext context) => [
-              PopupMenuItem(
-                  value: 'latest',
-                  child: Text('最新',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'hot',
-                  child: Text('最热',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'share',
-                  child: Text('分享发现',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-            ],
-            child: Chip(
-              label: Text(
-                selectedNode == 'latest'
-                    ? '最新'
-                    : selectedNode == 'hot'
-                        ? '最热'
-                        : selectedNode == 'share'
-                            ? '分享发现'
-                            : selectedNode.toUpperCase(),
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
+            itemBuilder: (BuildContext context) => officialNodes
+                .map(
+                  (groupNode) => PopupMenuItem(
+                    value: groupNode.key,
+                    child: Text(
+                      groupNode.name,
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
+                  ),
+                )
+                .toList(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.2),
+                  width: 1,
+                ),
               ),
-              avatar: const Icon(Icons.keyboard_arrow_down, size: 18),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    findGroupNodeByKey(selectedNode)?.name ??
+                        selectedNode.toUpperCase(),
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ],
+              ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              LogService.userAction('Settings button pressed');
-              context.push('/settings');
-            },
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(
+                Icons.settings_outlined,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 22,
+              ),
+              onPressed: () {
+                LogService.userAction('Settings button pressed');
+                context.push('/settings');
+              },
+            ),
           ),
         ],
       ),
@@ -164,9 +220,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           if (topicsState.error != null && topicsState.topics.isEmpty) {
             return RefreshIndicator(
               onRefresh: () async {
-                await ref
-                    .read(infiniteTopicsProvider(selectedNode).notifier)
-                    .refresh();
+                if (groupNode != null) {
+                  await ref
+                      .read(groupTopicsProvider(groupNode).notifier)
+                      .refresh();
+                }
               },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -191,10 +249,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () async {
-                          await ref
-                              .read(
-                                  infiniteTopicsProvider(selectedNode).notifier)
-                              .refresh();
+                          if (groupNode != null) {
+                            await ref
+                                .read(groupTopicsProvider(groupNode).notifier)
+                                .refresh();
+                          }
                         },
                         child: const Text('重试'),
                       ),
@@ -208,9 +267,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           if (topicsState.topics.isEmpty && !topicsState.isLoading) {
             return RefreshIndicator(
               onRefresh: () async {
-                await ref
-                    .read(infiniteTopicsProvider(selectedNode).notifier)
-                    .refresh();
+                if (groupNode != null) {
+                  await ref
+                      .read(groupTopicsProvider(groupNode).notifier)
+                      .refresh();
+                }
               },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -235,34 +296,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           return RefreshIndicator(
             onRefresh: () async {
-              await ref
-                  .read(infiniteTopicsProvider(selectedNode).notifier)
-                  .refresh();
+              if (groupNode != null) {
+                await ref
+                    .read(groupTopicsProvider(groupNode).notifier)
+                    .refresh();
+              }
             },
-            child: ListView.separated(
+            child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.zero,
               itemCount:
                   topicsState.topics.length + (topicsState.hasMoreData ? 1 : 0),
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 if (index >= topicsState.topics.length) {
                   // 加载更多指示器
                   return Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(24),
                     alignment: Alignment.center,
                     child: topicsState.isLoadingMore
-                        ? const CircularProgressIndicator()
+                        ? CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Theme.of(context).colorScheme.primary,
+                          )
                         : const SizedBox.shrink(),
                   );
                 }
 
                 final topic = topicsState.topics[index];
-                return TopicListItem(
-                  topic: topic,
-                  onTap: () {
-                    context.push('/t/${topic.id}');
-                  },
+                return Column(
+                  children: [
+                    TopicListItem(
+                      topic: topic,
+                      onTap: () {
+                        context.push('/t/${topic.id}');
+                      },
+                    ),
+                    if (index < topicsState.topics.length - 1)
+                      Divider(
+                        height: 1,
+                        thickness: 0.5,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outlineVariant
+                            .withValues(alpha: 0.3),
+                        indent: 16,
+                        endIndent: 16,
+                      ),
+                  ],
                 );
               },
             ),
