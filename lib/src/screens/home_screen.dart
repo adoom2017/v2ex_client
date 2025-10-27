@@ -121,6 +121,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Text('最新',
                       style: Theme.of(context).textTheme.bodyMedium)),
               PopupMenuItem(
+                  value: 'hot',
+                  child: Text('最热',
+                      style: Theme.of(context).textTheme.bodyMedium)),
+              PopupMenuItem(
                   value: 'share',
                   child: Text('分享发现',
                       style: Theme.of(context).textTheme.bodyMedium)),
@@ -159,7 +163,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
             child: Chip(
               label: Text(
-                selectedNode == 'latest' ? '最新' : selectedNode.toUpperCase(),
+                selectedNode == 'latest'
+                    ? '最新'
+                    : selectedNode == 'hot'
+                        ? '最热'
+                        : selectedNode.toUpperCase(),
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w500,
                       fontSize: 13,

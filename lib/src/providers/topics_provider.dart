@@ -120,14 +120,17 @@ class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
       if (nodeName == 'latest') {
         // 使用最新主题 API
         response = await apiClient.getLatestTopics();
+      } else if (nodeName == 'hot') {
+        // 使用最热主题 API
+        response = await apiClient.getHotTopics();
       } else {
         // 使用普通的节点主题 API
         response = await apiClient.getTopics(nodeName, p: 1);
       }
 
       List<dynamic> topicList;
-      if (nodeName == 'latest') {
-        // 最新主题 API 直接返回数组
+      if (nodeName == 'latest' || nodeName == 'hot') {
+        // 最新和最热主题 API 直接返回数组
         topicList = response.data as List;
       } else {
         // 节点主题 API 返回 {result: [...]}
@@ -143,7 +146,9 @@ class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
         topics: topics,
         currentPage: 1,
         isLoading: false,
-        hasMoreData: nodeName != 'latest' && topics.length >= 20, // 最新主题不支持分页
+        hasMoreData: nodeName != 'latest' &&
+            nodeName != 'hot' &&
+            topics.length >= 20, // 最新和最热主题不支持分页
       );
     } catch (e) {
       if (!mounted) return;
@@ -157,8 +162,8 @@ class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
   Future<void> loadMoreTopics() async {
     if (!mounted || state.isLoadingMore || !state.hasMoreData) return;
 
-    // 最新主题不支持分页，直接返回
-    if (nodeName == 'latest') return;
+    // 最新和最热主题不支持分页，直接返回
+    if (nodeName == 'latest' || nodeName == 'hot') return;
 
     state = state.copyWith(isLoadingMore: true);
     try {
