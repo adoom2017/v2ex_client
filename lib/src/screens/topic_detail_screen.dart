@@ -306,7 +306,8 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Topic Details'),
+        title: const Text('主题详情'),
+        centerTitle: true,
       ),
       body: topicAsyncValue.when(
         data: (topic) {

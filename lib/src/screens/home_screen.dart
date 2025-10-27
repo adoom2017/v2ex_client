@@ -128,38 +128,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   value: 'share',
                   child: Text('分享发现',
                       style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'python',
-                  child: Text('Python',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'java',
-                  child: Text('Java',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'javascript',
-                  child: Text('JavaScript',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'android',
-                  child: Text('Android',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'ios',
-                  child: Text('iOS',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'flutter',
-                  child: Text('Flutter',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'react',
-                  child: Text('React',
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              PopupMenuItem(
-                  value: 'vue',
-                  child: Text('Vue',
-                      style: Theme.of(context).textTheme.bodyMedium)),
             ],
             child: Chip(
               label: Text(
@@ -167,7 +135,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ? '最新'
                     : selectedNode == 'hot'
                         ? '最热'
-                        : selectedNode.toUpperCase(),
+                        : selectedNode == 'share'
+                            ? '分享发现'
+                            : selectedNode.toUpperCase(),
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w500,
                       fontSize: 13,
