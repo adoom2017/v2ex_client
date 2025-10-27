@@ -11,13 +11,13 @@ Topic _$TopicFromJson(Map<String, dynamic> json) => Topic(
       title: json['title'] as String,
       content: json['content'] as String,
       contentRendered: json['content_rendered'] as String,
-      syntax: (json['syntax'] as num).toInt(),
+      syntax: (json['syntax'] as num?)?.toInt(),
       url: json['url'] as String,
       replies: (json['replies'] as num).toInt(),
       lastReplyBy: json['last_reply_by'] as String,
       created: (json['created'] as num).toInt(),
-      lastModified: (json['last_modified'] as num).toInt(),
-      lastTouched: (json['last_touched'] as num).toInt(),
+      lastModified: (json['last_modified'] as num?)?.toInt(),
+      lastTouched: (json['last_touched'] as num?)?.toInt(),
       node: json['node'] == null
           ? null
           : Node.fromJson(json['node'] as Map<String, dynamic>),

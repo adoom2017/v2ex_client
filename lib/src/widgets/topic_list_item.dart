@@ -50,7 +50,7 @@ class TopicListItem extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '• ${timeago.format(DateTime.fromMillisecondsSinceEpoch(topic.lastTouched * 1000))}',
+                        '• ${timeago.format(DateTime.fromMillisecondsSinceEpoch((topic.lastTouched ?? topic.created) * 1000))}',
                         style: textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                           fontSize: 13,

@@ -171,6 +171,30 @@ class ApiClient {
       throw Exception('Failed to load topic replies: ${e.message}');
     }
   }
+
+  Future<Response> getLatestTopics() async {
+    try {
+      // 使用完整的 URL，因为这个 API 不在 v2/ 路径下
+      final dio = Dio();
+      final response =
+          await dio.get('https://www.v2ex.com/api/topics/latest.json');
+      return response;
+    } on DioException catch (e, stackTrace) {
+      LogService.error('❌ Failed to fetch latest topics', e, stackTrace);
+
+      if (e.type == DioExceptionType.connectionTimeout) {
+        final errorMsg =
+            'Connection timeout. Please check your internet connection.';
+        throw Exception(errorMsg);
+      } else if (e.type == DioExceptionType.receiveTimeout) {
+        final errorMsg = 'Request timeout. Please try again.';
+        throw Exception(errorMsg);
+      }
+
+      final errorMsg = 'Failed to load latest topics: ${e.message}';
+      throw Exception(errorMsg);
+    }
+  }
 }
 
 final dioProvider = Provider<Dio>((ref) {

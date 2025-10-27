@@ -6,7 +6,7 @@ import 'package:v2ex_client/src/providers/member_provider.dart';
 import 'package:v2ex_client/src/widgets/topic_list_item.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
 
-final selectedNodeProvider = StateProvider<String>((ref) => 'share');
+final selectedNodeProvider = StateProvider<String>((ref) => 'latest');
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -117,6 +117,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
             itemBuilder: (BuildContext context) => [
               PopupMenuItem(
+                  value: 'latest',
+                  child: Text('最新',
+                      style: Theme.of(context).textTheme.bodyMedium)),
+              PopupMenuItem(
                   value: 'share',
                   child: Text('分享发现',
                       style: Theme.of(context).textTheme.bodyMedium)),
@@ -155,7 +159,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
             child: Chip(
               label: Text(
-                selectedNode.toUpperCase(),
+                selectedNode == 'latest' ? '最新' : selectedNode.toUpperCase(),
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w500,
                       fontSize: 13,

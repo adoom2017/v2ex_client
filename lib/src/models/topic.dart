@@ -11,16 +11,16 @@ class Topic {
   final String content;
   @JsonKey(name: 'content_rendered')
   final String contentRendered;
-  final int syntax;
+  final int? syntax;
   final String url;
   final int replies;
   @JsonKey(name: 'last_reply_by')
   final String lastReplyBy;
   final int created;
   @JsonKey(name: 'last_modified')
-  final int lastModified;
+  final int? lastModified;
   @JsonKey(name: 'last_touched')
-  final int lastTouched;
+  final int? lastTouched;
 
   // 这些字段在主题列表中可能不存在，只在主题详情中存在
   final Node? node;
@@ -34,13 +34,13 @@ class Topic {
     required this.title,
     required this.content,
     required this.contentRendered,
-    required this.syntax,
+    this.syntax,
     required this.url,
     required this.replies,
     required this.lastReplyBy,
     required this.created,
-    required this.lastModified,
-    required this.lastTouched,
+    this.lastModified,
+    this.lastTouched,
     this.node,
     this.member,
     this.supplements,

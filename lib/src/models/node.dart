@@ -8,35 +8,59 @@ class Node {
   final String url;
   final String name;
   final String title;
-  final String header;
-  final String footer;
+  final String? header;
+  final String? footer;
   final String? content;
   final int topics;
 
-  // API响应中使用的是avatar而不是avatarMini/Normal/Large
-  final String avatar;
-  final int created;
+  // 处理不同API中的avatar字段格式
+  final String? avatar;
+  @JsonKey(name: 'avatar_mini')
+  final String? avatarMini;
+  @JsonKey(name: 'avatar_normal')
+  final String? avatarNormal;
+  @JsonKey(name: 'avatar_large')
+  final String? avatarLarge;
+
+  // 最新主题API中的额外字段
+  @JsonKey(name: 'title_alternative')
+  final String? titleAlternative;
+  final int? stars;
+  final List<dynamic>? aliases;
+  final bool? root;
+  @JsonKey(name: 'parent_node_name')
+  final String? parentNodeName;
+
+  final int? created;
   @JsonKey(name: 'last_modified')
-  final int lastModified;
+  final int? lastModified;
 
   Node({
     required this.id,
     required this.url,
     required this.name,
     required this.title,
-    required this.header,
-    required this.footer,
+    this.header,
+    this.footer,
     this.content,
     required this.topics,
-    required this.avatar,
-    required this.created,
-    required this.lastModified,
+    this.avatar,
+    this.avatarMini,
+    this.avatarNormal,
+    this.avatarLarge,
+    this.titleAlternative,
+    this.stars,
+    this.aliases,
+    this.root,
+    this.parentNodeName,
+    this.created,
+    this.lastModified,
   });
 
-  // 便捷方法，保持向后兼容
-  String get avatarNormal => avatar;
-  String get avatarLarge => avatar;
-  String get avatarMini => avatar;
+  // 便捷方法，优先使用特定的avatar字段，回退到通用avatar
+  String get avatarNormalUrl => avatarNormal ?? avatar ?? '';
+  String get avatarLargeUrl => avatarLarge ?? avatar ?? '';
+  String get avatarMiniUrl => avatarMini ?? avatar ?? '';
 
   factory Node.fromJson(Map<String, dynamic> json) => _$NodeFromJson(json);
   Map<String, dynamic> toJson() => _$NodeToJson(this);

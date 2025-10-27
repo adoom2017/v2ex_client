@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:v2ex_client/src/api/api_client.dart';
 import 'package:v2ex_client/src/models/topic.dart';
@@ -114,22 +115,36 @@ class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final apiClient = ref.read(apiClientProvider);
-      final response = await apiClient.getTopics(nodeName, p: 1);
+      late final Response response;
 
-      if (response.data != null && response.data['result'] is List) {
-        final topics = (response.data['result'] as List)
-            .map((topicJson) => Topic.fromJson(topicJson))
-            .toList();
-
-        if (!mounted) return;
-
-        state = state.copyWith(
-          topics: topics,
-          currentPage: 1,
-          isLoading: false,
-          hasMoreData: topics.length >= 20, // 假设每页20个
-        );
+      if (nodeName == 'latest') {
+        // 使用最新主题 API
+        response = await apiClient.getLatestTopics();
+      } else {
+        // 使用普通的节点主题 API
+        response = await apiClient.getTopics(nodeName, p: 1);
       }
+
+      List<dynamic> topicList;
+      if (nodeName == 'latest') {
+        // 最新主题 API 直接返回数组
+        topicList = response.data as List;
+      } else {
+        // 节点主题 API 返回 {result: [...]}
+        topicList = response.data['result'] as List;
+      }
+
+      final topics =
+          topicList.map((topicJson) => Topic.fromJson(topicJson)).toList();
+
+      if (!mounted) return;
+
+      state = state.copyWith(
+        topics: topics,
+        currentPage: 1,
+        isLoading: false,
+        hasMoreData: nodeName != 'latest' && topics.length >= 20, // 最新主题不支持分页
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
@@ -141,6 +156,9 @@ class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
 
   Future<void> loadMoreTopics() async {
     if (!mounted || state.isLoadingMore || !state.hasMoreData) return;
+
+    // 最新主题不支持分页，直接返回
+    if (nodeName == 'latest') return;
 
     state = state.copyWith(isLoadingMore: true);
     try {
@@ -155,7 +173,13 @@ class InfiniteTopicsNotifier extends StateNotifier<InfiniteTopicsState> {
 
         if (!mounted) return;
 
-        final allTopics = [...state.topics, ...newTopics];
+        // 检查重复的主题ID以避免重复添加
+        final existingIds = state.topics.map((t) => t.id).toSet();
+        final uniqueNewTopics = newTopics
+            .where((topic) => !existingIds.contains(topic.id))
+            .toList();
+
+        final allTopics = [...state.topics, ...uniqueNewTopics];
 
         state = state.copyWith(
           topics: allTopics,
