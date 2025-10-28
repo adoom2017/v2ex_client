@@ -41,23 +41,17 @@ class SignInService {
       var onceMatch = RegExp(r'name="once"\s+value="(\d+)"').firstMatch(html);
 
       // 模式2: value="数字" name="once"
-      if (onceMatch == null) {
-        onceMatch = RegExp(r'value="(\d+)"\s+name="once"').firstMatch(html);
-      }
+      onceMatch ??= RegExp(r'value="(\d+)"\s+name="once"').firstMatch(html);
 
       // 模式3: 在整个input标签中查找 (单引号或双引号)
-      if (onceMatch == null) {
-        onceMatch = RegExp(
-                r'<input[^>]*name=["\047]once["\047][^>]*value=["\047](\d+)["\047]')
-            .firstMatch(html);
-      }
+      onceMatch ??= RegExp(
+              r'<input[^>]*name=["\047]once["\047][^>]*value=["\047](\d+)["\047]')
+          .firstMatch(html);
 
       // 模式4: 反向查找
-      if (onceMatch == null) {
-        onceMatch = RegExp(
-                r'<input[^>]*value=["\047](\d+)["\047][^>]*name=["\047]once["\047]')
-            .firstMatch(html);
-      }
+      onceMatch ??= RegExp(
+              r'<input[^>]*value=["\047](\d+)["\047][^>]*name=["\047]once["\047]')
+          .firstMatch(html);
 
       if (onceMatch != null) {
         final once = onceMatch.group(1);
@@ -248,9 +242,7 @@ class SignInService {
       // 尝试多种模式提取once
       var onceMatch = RegExp(r'name="once"\s+value="(\d+)"').firstMatch(html);
 
-      if (onceMatch == null) {
-        onceMatch = RegExp(r'value="(\d+)"\s+name="once"').firstMatch(html);
-      }
+      onceMatch ??= RegExp(r'value="(\d+)"\s+name="once"').firstMatch(html);
 
       if (onceMatch != null) {
         final once = onceMatch.group(1);

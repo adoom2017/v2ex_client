@@ -7,6 +7,7 @@ import 'package:v2ex_client/src/widgets/topic_list_item.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
 import 'package:v2ex_client/src/models/group_node.dart';
 import 'package:v2ex_client/src/screens/notifications_screen.dart';
+import 'package:v2ex_client/src/widgets/node_selector_drawer.dart';
 
 final selectedNodeProvider = StateProvider<String>((ref) => 'latest');
 
@@ -157,32 +158,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             GestureDetector(
               onTap: () {
-                showCupertinoModalPopup<String>(
-                  context: context,
-                  builder: (BuildContext context) => CupertinoActionSheet(
-                    title: const Text('选择节点'),
-                    actions: officialNodes
-                        .map(
-                          (groupNode) => CupertinoActionSheetAction(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              LogService.userAction('Node changed',
-                                  {'from': selectedNode, 'to': groupNode.key});
-                              ref.read(selectedNodeProvider.notifier).state =
-                                  groupNode.key;
-                            },
-                            child: Text(groupNode.name),
-                          ),
-                        )
-                        .toList(),
-                    cancelButton: CupertinoActionSheetAction(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text('取消'),
-                    ),
-                  ),
-                );
+                LogService.userAction('Node selector tapped');
+                showNodeSelectorDrawer(context);
               },
               child: Container(
                 padding:
