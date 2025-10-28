@@ -81,6 +81,34 @@ class TopicListItem extends StatelessWidget {
                           fontSize: 12,
                         ),
                       ),
+                      // 显示最后回复者
+                      if (topic.lastReplyBy.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        const Text(
+                          '•',
+                          style: TextStyle(
+                            color: CupertinoColors.secondaryLabel,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '最后回复来自',
+                          style: TextStyle(
+                            color: CupertinoColors.secondaryLabel,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          topic.lastReplyBy,
+                          style: const TextStyle(
+                            color: CupertinoColors.secondaryLabel,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 6),

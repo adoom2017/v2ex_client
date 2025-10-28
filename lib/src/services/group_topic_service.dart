@@ -11,12 +11,14 @@ class GroupTopicCache {
   final int totalCount;
   final int cachedPages;
   final DateTime lastUpdate;
+  final int nextPageToFetch; // 记录下一次应该获取的页码
 
   const GroupTopicCache({
     required this.topics,
     required this.totalCount,
     required this.cachedPages,
     required this.lastUpdate,
+    this.nextPageToFetch = 1,
   });
 
   GroupTopicCache copyWith({
@@ -24,12 +26,14 @@ class GroupTopicCache {
     int? totalCount,
     int? cachedPages,
     DateTime? lastUpdate,
+    int? nextPageToFetch,
   }) {
     return GroupTopicCache(
       topics: topics ?? this.topics,
       totalCount: totalCount ?? this.totalCount,
       cachedPages: cachedPages ?? this.cachedPages,
       lastUpdate: lastUpdate ?? this.lastUpdate,
+      nextPageToFetch: nextPageToFetch ?? this.nextPageToFetch,
     );
   }
 }
@@ -105,11 +109,17 @@ class GroupTopicService {
   Future<GroupTopicResult> _performRequest(
       GroupNode groupNode, int page) async {
     try {
+      // 获取缓存以确定下一页页码
+      final cache = _cache[groupNode.key];
+      final pageToFetch = cache?.nextPageToFetch ?? 1;
+
+      LogService.info(
+          '准备获取数据: 组=${groupNode.name}, 请求页=$page, 实际获取页=$pageToFetch');
+
       // 需要从API获取数据
-      final newTopics = await _fetchGroupTopics(groupNode);
+      final newTopics = await _fetchGroupTopics(groupNode, pageToFetch);
 
       // 更新缓存
-      final cache = _cache[groupNode.key];
       final totalCachedTopics = <Topic>[...(cache?.topics ?? []), ...newTopics];
 
       // 按时间排序
@@ -124,6 +134,7 @@ class GroupTopicService {
         totalCount: uniqueTopics.length,
         cachedPages: (uniqueTopics.length / _perPage).ceil(),
         lastUpdate: DateTime.now(),
+        nextPageToFetch: pageToFetch + 1, // 更新下一页页码
       );
 
       _cache[groupNode.key] = newCache;
@@ -145,15 +156,15 @@ class GroupTopicService {
     }
   }
 
-  Future<List<Topic>> _fetchGroupTopics(GroupNode groupNode) async {
+  Future<List<Topic>> _fetchGroupTopics(GroupNode groupNode, int page) async {
     LogService.info(
-        '并发获取分组节点数据: ${groupNode.name}, 节点数: ${groupNode.nodes.length}');
+        '并发获取分组节点数据: ${groupNode.name}, 节点数: ${groupNode.nodes.length}, 页码: $page');
     LogService.info('分组key: ${groupNode.key}, 节点列表: ${groupNode.nodes}');
 
     final List<Future<List<Topic>>> futures = [];
 
     for (final nodeKey in groupNode.nodes) {
-      LogService.info('准备获取节点: $nodeKey');
+      LogService.info('准备获取节点: $nodeKey, 页码: $page');
       if (_requestingNodes.contains(nodeKey)) {
         LogService.info('节点 $nodeKey 正在请求中，跳过');
         continue; // 跳过正在请求的节点
@@ -161,7 +172,7 @@ class GroupTopicService {
 
       _requestingNodes.add(nodeKey);
 
-      futures.add(_fetchNodeTopics(nodeKey).whenComplete(() {
+      futures.add(_fetchNodeTopics(nodeKey, page).whenComplete(() {
         _requestingNodes.remove(nodeKey);
       }));
     }
@@ -183,8 +194,9 @@ class GroupTopicService {
     }
   }
 
-  Future<List<Topic>> _fetchNodeTopics(String nodeKey) async {
-    LogService.info('🔍 _fetchNodeTopics called with nodeKey: $nodeKey');
+  Future<List<Topic>> _fetchNodeTopics(String nodeKey, int page) async {
+    LogService.info(
+        '🔍 _fetchNodeTopics called with nodeKey: $nodeKey, page: $page');
     try {
       List<Topic> topics = [];
 
@@ -206,19 +218,22 @@ class GroupTopicService {
               .toList();
         }
       } else {
-        // 普通节点 - 使用 HTML 解析方式
-        LogService.info('📝 Fetching topics for node via HTML: $nodeKey');
-        final htmlContent = await _apiClient.getNodeTopicsHtml(nodeKey, p: 1);
+        // 普通节点 - 使用 HTML 解析方式，传入正确的页码
+        LogService.info(
+            '📝 Fetching topics for node via HTML: $nodeKey, page: $page');
+        final htmlContent =
+            await _apiClient.getNodeTopicsHtml(nodeKey, p: page);
         topics =
             HtmlParserService.parseTopicsNode(htmlContent, nodeKey: nodeKey);
       }
 
       // 注意：HTML解析方式已经包含了node信息，无需再次添加
       LogService.info(
-          '✅ Successfully fetched ${topics.length} topics for node: $nodeKey');
+          '✅ Successfully fetched ${topics.length} topics for node: $nodeKey, page: $page');
       return topics;
     } catch (e) {
-      LogService.error('获取节点主题失败: $nodeKey', e, StackTrace.current);
+      LogService.error(
+          '获取节点主题失败: $nodeKey, page: $page', e, StackTrace.current);
       return []; // 单个节点失败不影响整体
     }
   }
