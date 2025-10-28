@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:v2ex_client/src/services/token_service.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
 
@@ -102,6 +103,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // 登录按钮
+            Container(
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemBackground,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: CupertinoButton(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                onPressed: () {
+                  context.push('/signin');
+                },
+                child: const Row(
+                  children: [
+                    Icon(
+                      CupertinoIcons.person_circle,
+                      color: CupertinoColors.systemBlue,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      '账号登录',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: CupertinoColors.label,
+                      ),
+                    ),
+                    Spacer(),
+                    Icon(
+                      CupertinoIcons.chevron_right,
+                      color: CupertinoColors.systemGrey,
+                      size: 20,
+                    ),
+                  ],
+                ),
               ),
             ),
 

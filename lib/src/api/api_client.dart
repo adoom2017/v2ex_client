@@ -219,6 +219,57 @@ class ApiClient {
       throw Exception(errorMsg);
     }
   }
+
+  /// 通过HTML解析获取节点主题列表
+  /// 使用 https://www.v2ex.com/go/:nodekey?p=1 接口
+  Future<String> getNodeTopicsHtml(String nodeKey, {int p = 1}) async {
+    try {
+      // 创建独立的 Dio 实例用于 HTML 请求
+      final dio = Dio();
+
+      // 构建URL
+      final url = 'https://www.v2ex.com/go/$nodeKey?p=$p';
+
+      LogService.info('Fetching node topics HTML', {
+        'nodeKey': nodeKey,
+        'page': p,
+        'url': url,
+      });
+
+      // 发送请求
+      final response = await dio.get(
+        url,
+        options: Options(
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+          validateStatus: (status) => status! < 500,
+          responseType: ResponseType.plain, // 确保返回字符串
+        ),
+      );
+
+      if (response.statusCode != 200) {
+        LogService.error('Failed to fetch node topics HTML',
+            'Status code: ${response.statusCode}', StackTrace.current);
+        throw Exception('Failed to load topics: ${response.statusCode}');
+      }
+
+      return response.data as String;
+    } on DioException catch (e, stackTrace) {
+      LogService.error(
+          '❌ Failed to fetch node topics HTML for: $nodeKey', e, stackTrace);
+
+      if (e.type == DioExceptionType.connectionTimeout) {
+        throw Exception(
+            'Connection timeout. Please check your internet connection.');
+      } else if (e.type == DioExceptionType.receiveTimeout) {
+        throw Exception('Request timeout. Please try again.');
+      }
+
+      throw Exception('Failed to load topics: ${e.message}');
+    }
+  }
 }
 
 final dioProvider = Provider<Dio>((ref) {

@@ -2,9 +2,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:v2ex_client/src/api/api_client.dart';
 import 'package:v2ex_client/src/models/topic.dart';
-import 'package:v2ex_client/src/models/node.dart';
 import 'package:v2ex_client/src/models/group_node.dart';
 import 'package:v2ex_client/src/services/log_service.dart';
+import 'package:v2ex_client/src/services/html_parser_service.dart';
 
 class GroupTopicCache {
   final List<Topic> topics;
@@ -56,63 +56,6 @@ class GroupTopicService {
   // 请求状态管理 - 使用Future来跟踪正在进行的请求
   final Map<String, Future<GroupTopicResult>> _pendingRequests = {};
   final Set<String> _requestingNodes = {};
-
-  // 节点名称映射（nodeKey -> 中文名称）
-  static const Map<String, String> _nodeNames = {
-    'programmer': '程序员',
-    'python': 'Python',
-    'idev': 'iDev',
-    'android': 'Android',
-    'linux': 'Linux',
-    'nodejs': 'Node.js',
-    'cloud': '云计算',
-    'bb': '宽带症候群',
-    'create': '分享创造',
-    'design': '设计',
-    'ideas': '奇思妙想',
-    'share': '分享发现',
-    'crypto': '加密货币',
-    'games': '游戏',
-    'movie': '电影',
-    'tv': '剧集',
-    'music': '音乐',
-    'travel': '旅行',
-    'afterdark': '天黑以后',
-    'macos': 'macOS',
-    'iphone': 'iPhone',
-    'ipad': 'iPad',
-    'macmini': 'Mac mini',
-    'mbp': 'MacBook Pro',
-    'imac': 'iMac',
-    'watch': 'Apple Watch',
-    'apple': 'Apple',
-    'jobs': '酷工作',
-    'cv': '求职',
-    'career': '职场话题',
-    'meet': '创业组队',
-    'outsourcing': '外包',
-    'all4all': '二手交易',
-    'exchange': '物物交换',
-    'free': '免费赠送',
-    'dn': '域名',
-    'tuan': '团购',
-    'beijing': '北京',
-    'shanghai': '上海',
-    'shenzhen': '深圳',
-    'guangzhou': '广州',
-    'hangzhou': '杭州',
-    'chengdu': '成都',
-    'singapore': 'Singapore',
-    'nyc': 'New York',
-    'la': 'Los Angeles',
-    'qna': '问与答',
-    'hardware': '硬件',
-    'gamedev': '游戏开发',
-    'invest': '投资',
-    'solana': 'Solana',
-    'latest': '最新',
-    'hot': '最热',
-  };
 
   GroupTopicService(this._apiClient);
 
@@ -263,32 +206,17 @@ class GroupTopicService {
               .toList();
         }
       } else {
-        // 普通节点
-        LogService.info('📝 Fetching topics for node: $nodeKey');
-        final response = await _apiClient.getTopics(nodeKey, p: 1);
-        if (response.data?['result'] is List) {
-          topics = (response.data['result'] as List)
-              .map((json) => Topic.fromJson(json))
-              .toList();
-        }
+        // 普通节点 - 使用 HTML 解析方式
+        LogService.info('📝 Fetching topics for node via HTML: $nodeKey');
+        final htmlContent = await _apiClient.getNodeTopicsHtml(nodeKey, p: 1);
+        topics =
+            HtmlParserService.parseTopicsNode(htmlContent, nodeKey: nodeKey);
       }
 
-      // 为每个topic添加node信息（如果还没有的话）
-      final nodeTitle = _nodeNames[nodeKey] ?? nodeKey;
-      return topics.map((topic) {
-        // 如果topic已经有node信息，保留原有的；否则创建新的
-        if (topic.node == null) {
-          final node = Node(
-            id: 0, // 临时ID
-            url: '/go/$nodeKey',
-            name: nodeKey,
-            title: nodeTitle,
-            topics: 0,
-          );
-          return topic.copyWith(node: node);
-        }
-        return topic;
-      }).toList();
+      // 注意：HTML解析方式已经包含了node信息，无需再次添加
+      LogService.info(
+          '✅ Successfully fetched ${topics.length} topics for node: $nodeKey');
+      return topics;
     } catch (e) {
       LogService.error('获取节点主题失败: $nodeKey', e, StackTrace.current);
       return []; // 单个节点失败不影响整体

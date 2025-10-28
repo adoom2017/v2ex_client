@@ -61,6 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final selectedNode = ref.watch(selectedNodeProvider);
     final groupNode = findGroupNodeByKey(selectedNode);
+
     final topicsState = groupNode != null
         ? ref.watch(groupTopicsProvider(groupNode))
         : const GroupTopicsState();
@@ -263,6 +264,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       child: Builder(
         builder: (context) {
+          // 其他节点使用原有的逻辑
           if (topicsState.isLoading && topicsState.topics.isEmpty) {
             return const Center(child: CupertinoActivityIndicator());
           }
