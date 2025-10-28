@@ -48,4 +48,38 @@ class Topic {
 
   factory Topic.fromJson(Map<String, dynamic> json) => _$TopicFromJson(json);
   Map<String, dynamic> toJson() => _$TopicToJson(this);
+
+  Topic copyWith({
+    int? id,
+    String? title,
+    String? content,
+    String? contentRendered,
+    int? syntax,
+    String? url,
+    int? replies,
+    String? lastReplyBy,
+    int? created,
+    int? lastModified,
+    int? lastTouched,
+    Node? node,
+    Member? member,
+    List<dynamic>? supplements,
+  }) {
+    return Topic(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      contentRendered: contentRendered ?? this.contentRendered,
+      syntax: syntax ?? this.syntax,
+      url: url ?? this.url,
+      replies: replies ?? this.replies,
+      lastReplyBy: lastReplyBy ?? this.lastReplyBy,
+      created: created ?? this.created,
+      lastModified: lastModified ?? this.lastModified,
+      lastTouched: lastTouched ?? this.lastTouched,
+      node: node ?? this.node,
+      member: member ?? this.member,
+      supplements: supplements ?? this.supplements,
+    );
+  }
 }
