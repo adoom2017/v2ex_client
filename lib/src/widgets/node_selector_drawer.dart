@@ -15,7 +15,7 @@ class NodeSelectorDrawer extends ConsumerWidget {
     return GestureDetector(
       onTap: () => Navigator.of(context).pop(),
       child: Container(
-        color: CupertinoColors.black.withValues(alpha: 0.3),
+        color: CupertinoColors.black.withValues(alpha: 0.0),
         child: Align(
           alignment: Alignment.centerRight,
           child: GestureDetector(
@@ -61,8 +61,8 @@ class NodeSelectorDrawer extends ConsumerWidget {
                           ),
                           CupertinoButton(
                             padding: EdgeInsets.zero,
-                            minSize: 32,
                             onPressed: () => Navigator.of(context).pop(),
+                            minimumSize: Size(32, 32),
                             child: Container(
                               width: 32,
                               height: 32,
@@ -212,7 +212,7 @@ void showNodeSelectorDrawer(BuildContext context) {
     PageRouteBuilder(
       opaque: false,
       barrierDismissible: true,
-      barrierColor: CupertinoColors.black.withValues(alpha: 0.3),
+      barrierColor: CupertinoColors.black.withValues(alpha: 0.0),
       pageBuilder: (context, animation, secondaryAnimation) {
         return SlideTransition(
           position: Tween<Offset>(
