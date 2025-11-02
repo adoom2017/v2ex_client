@@ -21,32 +21,28 @@ class NodeSelectorDrawer extends ConsumerWidget {
           child: GestureDetector(
             onTap: () {}, // 阻止点击抽屉本身时关闭
             child: Container(
-              width: 280,
+              width: 300,
               height: double.infinity,
-              decoration: const BoxDecoration(
-                color: CupertinoColors.systemBackground,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  bottomLeft: Radius.circular(12),
-                ),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGroupedBackground,
+                boxShadow: [
+                  BoxShadow(
+                    color: CupertinoColors.black.withValues(alpha: 0.1),
+                    blurRadius: 20,
+                    offset: const Offset(-5, 0),
+                  ),
+                ],
               ),
               child: SafeArea(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 标题栏
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: CupertinoColors.separator,
-                            width: 0.5,
-                          ),
-                        ),
+                      padding: const EdgeInsets.only(
+                        left: 20,
+                        right: 16,
+                        top: 20,
+                        bottom: 12,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -54,25 +50,25 @@ class NodeSelectorDrawer extends ConsumerWidget {
                           const Text(
                             '选择节点',
                             style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
                               color: CupertinoColors.label,
+                              letterSpacing: -0.5,
                             ),
                           ),
                           CupertinoButton(
                             padding: EdgeInsets.zero,
                             onPressed: () => Navigator.of(context).pop(),
-                            minimumSize: Size(32, 32),
                             child: Container(
-                              width: 32,
-                              height: 32,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
-                                color: CupertinoColors.systemGrey6,
-                                borderRadius: BorderRadius.circular(16),
+                                color: CupertinoColors.tertiarySystemFill,
+                                borderRadius: BorderRadius.circular(15),
                               ),
                               child: const Icon(
                                 CupertinoIcons.xmark,
-                                size: 16,
+                                size: 18,
                                 color: CupertinoColors.secondaryLabel,
                               ),
                             ),
@@ -82,87 +78,111 @@ class NodeSelectorDrawer extends ConsumerWidget {
                     ),
                     // 节点列表
                     Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        itemCount: officialNodes.length,
-                        separatorBuilder: (context, index) => Container(
-                          height: 0.5,
-                          color: CupertinoColors.separator,
-                          margin: const EdgeInsets.only(left: 56),
-                        ),
-                        itemBuilder: (context, index) {
-                          final groupNode = officialNodes[index];
-                          final isSelected = groupNode.key == selectedNode;
+                      child: CupertinoScrollbar(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          itemCount: officialNodes.length,
+                          itemBuilder: (context, index) {
+                            final groupNode = officialNodes[index];
+                            final isSelected = groupNode.key == selectedNode;
 
-                          return CupertinoButton(
-                            padding: EdgeInsets.zero,
-                            onPressed: () {
-                              LogService.userAction(
-                                'Node changed',
-                                {'from': selectedNode, 'to': groupNode.key},
-                              );
-                              ref.read(selectedNodeProvider.notifier).state =
-                                  groupNode.key;
-                              Navigator.of(context).pop();
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                              child: Row(
-                                children: [
-                                  // 图标
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? CupertinoColors.systemBlue
-                                              .withValues(alpha: 0.15)
-                                          : CupertinoColors.systemGrey6,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        _getNodeIcon(groupNode.key),
-                                        style: TextStyle(
-                                          fontSize: 18,
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: CupertinoButton(
+                                padding: EdgeInsets.zero,
+                                onPressed: () {
+                                  LogService.userAction(
+                                    'Node changed',
+                                    {'from': selectedNode, 'to': groupNode.key},
+                                  );
+                                  ref
+                                      .read(selectedNodeProvider.notifier)
+                                      .state = groupNode.key;
+                                  Navigator.of(context).pop();
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? CupertinoColors.systemBlue
+                                        : CupertinoColors.systemBackground,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      if (!isSelected)
+                                        BoxShadow(
+                                          color: CupertinoColors.black
+                                              .withValues(alpha: 0.03),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // 图标
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
                                           color: isSelected
-                                              ? CupertinoColors.systemBlue
-                                              : CupertinoColors.secondaryLabel,
+                                              ? CupertinoColors.white
+                                                  .withValues(alpha: 0.25)
+                                              : CupertinoColors.systemGrey6,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            _getNodeIcon(groupNode.key),
+                                            style:
+                                                const TextStyle(fontSize: 20),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  // 节点名称
-                                  Expanded(
-                                    child: Text(
-                                      groupNode.name,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: isSelected
-                                            ? FontWeight.w600
-                                            : FontWeight.w400,
-                                        color: isSelected
-                                            ? CupertinoColors.systemBlue
-                                            : CupertinoColors.label,
+                                      const SizedBox(width: 14),
+                                      // 节点名称
+                                      Expanded(
+                                        child: Text(
+                                          groupNode.name,
+                                          style: TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: isSelected
+                                                ? FontWeight.w600
+                                                : FontWeight.w400,
+                                            color: isSelected
+                                                ? CupertinoColors.white
+                                                : CupertinoColors.label,
+                                            letterSpacing: -0.3,
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                      // 选中标记
+                                      if (isSelected)
+                                        const Icon(
+                                          CupertinoIcons
+                                              .checkmark_alt_circle_fill,
+                                          size: 22,
+                                          color: CupertinoColors.white,
+                                        )
+                                      else
+                                        const Icon(
+                                          CupertinoIcons.chevron_right,
+                                          size: 18,
+                                          color: CupertinoColors.tertiaryLabel,
+                                        ),
+                                    ],
                                   ),
-                                  // 选中标记
-                                  if (isSelected)
-                                    const Icon(
-                                      CupertinoIcons.checkmark_alt,
-                                      size: 20,
-                                      color: CupertinoColors.systemBlue,
-                                    ),
-                                ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ],
